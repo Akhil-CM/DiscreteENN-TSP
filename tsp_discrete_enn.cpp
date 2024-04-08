@@ -118,6 +118,10 @@ int main()
     std::cout << "[Info]: Total distance is : " << dist << '\n';
     std::cout << line_str + "\n";
 
+    {
+        drawPath(path, stack);
+    }
+
     return 0;
 }
 
