@@ -1,8 +1,8 @@
 // -*- C++ -*-
 #include "tsp_discrete_enn.hpp"
 
+#include <cstddef>
 #include <cstdlib>
-#include <random>
 #include <chrono>
 #include <filesystem>
 
@@ -76,21 +76,33 @@ int main()
     // -------------------------------------------
     // Construct Path
     // -------------------------------------------
-    // constructPath(path, cities, 3, rng);
-    constructPath(path, stack, 3);
+    constexpr std::size_t num_nodes_initial{20};
+    // constructPath(path, cities, num_nodes_initial, rng);
+    constructPath(path, stack, num_nodes_initial);
+    for (std::size_t idx{ 0 }; idx != num_nodes_initial; ++idx) {
+        path[idx]->on_stack = false;
+        neighbourCost(idx, path, true);
+    }
     {
-        const int num_nodes = path.size();
-        for (int idx{ 0 }; idx != num_nodes; ++idx) {
-            path[idx]->on_stack = false;
-            neighbourCost(idx, path, true);
-        }
+
+        constexpr bool recursive{false};
+        std::vector<int> indices;
+        std::cout << ("\n[Info] (main): validatePath\n");
+        validatePath(path, indices, recursive);
+        std::cout << "\n[Info] (main): Nodes to remove : " << indices.size() << '\n';
+
+        std::cout << ("\n[Info] (main): validatePath removeNodes\n");
+        removeNodes(indices, path);
+
+        std::cout << ("\n[Info] (main): validatePath updateCosts\n");
+        updateCosts(path);
     }
 
     // -------------------------------------------
     // Run Discrete ENN
     // -------------------------------------------
     TimePoint_t start_time = std::chrono::steady_clock::now();
-    runDiscreteENN(stack, path);
+    runDiscreteENN(stack, path, rng);
     TimePoint_t end_time = std::chrono::steady_clock::now();
     auto delta = std::chrono::duration_cast<TimeUnit_t>(end_time - start_time);
     const auto duration = delta.count();
@@ -100,10 +112,12 @@ int main()
     assert("[Error]: path size not equal to stack size" &&
            (path.size() == stack.size()));
 
-    NodeOpt_t node_erased1 = pathCriteria1(path);
-    if(node_erased1.has_value()) {
-        std::cerr << "[Error]: Algoirthm has not found the optimal path\n";
-        exit(EXIT_FAILURE);
+    const int num_nodes = path.size();
+    for (int idx{ 0 }; idx != num_nodes; ++idx) {
+        if (not validateNode(idx, path)) {
+            std::cerr << "[Error]: Algoirthm has not found the optimal path\n";
+            exit(EXIT_FAILURE);
+        }
     }
 
     // -------------------------------------------
@@ -111,7 +125,6 @@ int main()
     // -------------------------------------------
     std::cout << "[Info]: Print results\n";
     double dist{0.0};
-    const int num_nodes = path.size();
     for (int idx{ 0 }; idx != num_nodes; ++idx) {
         // path[idx]->print();
         dist += distance(*path[idx], *path[properIndex(idx + 1, num_nodes)]);

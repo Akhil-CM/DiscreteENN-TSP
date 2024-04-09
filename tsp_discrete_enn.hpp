@@ -1,6 +1,7 @@
 // -*- C++ Header -*-
 #include <iostream>
 #include <fstream>
+#include <random>
 #include <sstream>
 #include <algorithm>
 #include <numeric>
@@ -347,6 +348,38 @@ void removeNode(int index, Path_t& path)
     path.erase(path.begin() + index);
 }
 
+bool removeStackNode(const Node_t& node)
+{
+    return node->on_stack;
+}
+
+NodeOpt_t removeNodes(const std::vector<int>& indices, Path_t& path)
+{
+    const std::size_t num_nodes{ path.size() };
+    const std::size_t num_indices{ indices.size() };
+    assert(
+        "[Error] (removeNodes): Number of indices greater than number of nodes" &&
+        (num_nodes >= num_indices));
+    NodeOpt_t node_erased{ std::nullopt };
+    if (indices.empty()) {
+        return node_erased;
+    }
+    node_erased = path[indices[0]];
+    (*node_erased)->on_stack = true;
+    for (int idx{ 1 }; idx != num_indices; ++idx) {
+        const Node_t node = path[indices[idx]];
+        node->on_stack = true;
+        if (node->id < (*node_erased)->id) {
+            node_erased = node;
+        }
+    }
+    auto it = std::remove_if(path.begin(), path.end(), removeStackNode);
+    path.erase(it, path.end());
+    assert("[Error] (removeNodes): Didn't remove all the indices" &&
+           (path.size() == (num_nodes - num_indices)));
+    return node_erased;
+}
+
 double getArea(const City& a, const City& b, const City& c)
 {
     return std::abs(a.x * (b.y - c.y) + b.x * (c.y - a.y) + c.x * (a.y - b.y)) /
@@ -401,7 +434,8 @@ NodeOpt_t removeIntersection(int index, Path_t& path)
         std::cout << "FIRST CITY\n";
         path[idx]->print();
         if (node_erased.has_value()) {
-            node_erased = (path[idx]->id < (*node_erased)->id) ? path[idx] : node_erased;
+            node_erased = (path[idx]->id < (*node_erased)->id) ? path[idx] :
+                                                                 node_erased;
         } else {
             node_erased = path[idx];
         }
@@ -430,6 +464,42 @@ NodeOpt_t removeIntersection(int index, Path_t& path)
     // const std::string& msg{ "path size (" + std::to_string(path.size()) + ")" };
     // std::cout << ("[Info] (removeIntersection): " + msg + "\n");
     return node_erased;
+}
+
+template <typename T>
+bool vectContains(const T& item, const std::vector<T>& vect)
+{
+    for (const T& elmnt : vect) {
+        if (elmnt == item) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void removeIntersection(int index, const Path_t& path,
+                        std::vector<int>& indices, bool recursive)
+{
+    const int num_nodes = path.size();
+    auto [node_prev, node_curr, node_next] = getNeigbhours(index, path);
+    auto [idx_prev, idx_curr, idx_next] = getNeigbhours(index, num_nodes);
+    for (int idx{ 0 }; idx != num_nodes;) {
+        if ((idx == idx_prev) or (idx == idx_curr) or (idx == idx_next)) {
+            ++idx;
+            continue;
+        }
+        const Node_t& node{ path[idx] };
+        if (not isInside(node, node_prev, node_curr, node_next) or
+            vectContains(idx, indices)) {
+            ++idx;
+            continue;
+        }
+        indices.push_back(idx);
+        if (recursive) {
+            removeIntersection(idx, path, indices, true);
+        }
+        ++idx;
+    }
 }
 
 int findBestInsertion(const Node_t& node, const Path_t& path)
@@ -480,9 +550,6 @@ int addNode(Path_t& path, const Node_t& node)
                             ") position : " + std::to_string(position) };
     std::cout << ("[Info] (addNode): " + msg + "\n");
 
-    std::cout << ("\n[Info] (addNode): removeIntersection\n");
-    removeIntersection(position, path);
-
     return position;
 }
 
@@ -493,6 +560,14 @@ void updateCost(int index, const Path_t& path, bool neigbhours)
     if (neigbhours) {
         neighbourCost(idx_curr - 1, path, true);
         neighbourCost(idx_curr + 1, path, true);
+    }
+}
+
+void updateCosts(const Path_t& path)
+{
+    const int num_nodes = path.size();
+    for (int idx{ 0 }; idx != num_nodes; ++idx) {
+        neighbourCost(idx, path, true);
     }
 }
 
@@ -517,37 +592,23 @@ bool validateNode(int index, const Path_t& path)
     return true;
 }
 
-NodeOpt_t pathCriteria1(Path_t& path)
+void pathCriteria1(const Path_t& path, std::vector<int>& indices,
+                   bool recursive)
 {
-    NodeOpt_t node_erased{ std::nullopt };
-    int num_nodes = path.size();
+    const int num_nodes = path.size();
     for (int idx{ 0 }; idx != num_nodes;) {
-        if (validateNode(idx, path)) {
+        if (validateNode(idx, path) or vectContains(idx, indices)) {
             ++idx;
             // const std::string& msg{ "idx (" + std::to_string(idx) + ")." };
             // std::cout << ("[Info] (validatePath): " + msg + "\n");
             continue;
         }
-        if (node_erased.has_value()) {
-            node_erased = (path[idx]->id < (*node_erased)->id) ? path[idx] :
-                                                                 node_erased;
-        } else {
-            node_erased = path[idx];
+        indices.push_back(idx);
+        if (recursive) {
+            removeIntersection(idx, path, indices, true);
         }
-        path[0]->print();
-        std::cout << "FIRST CITY\n";
-        path[idx]->print();
-        removeNode(idx, path);
-        neighbourCost(idx, path, true);
-        neighbourCost(idx - 1, path, true);
-        --num_nodes;
-        const std::string& msg{ "path size (" + std::to_string(path.size()) +
-                                ") num_nodes (" + std::to_string(num_nodes) +
-                                ") idx (" + std::to_string(idx) + ")." };
-        std::cout << ("[Info] (pathCriteria1): " + msg + "\n");
-        idx = 0;
+        ++idx;
     }
-    return node_erased;
 }
 
 NodeOpt_t pathCriteria2(Path_t& path)
@@ -571,30 +632,17 @@ NodeOpt_t pathCriteria2(Path_t& path)
         std::cout << "FIRST CITY\n";
         (*tmp)->print();
         const std::string& msg{ "path size (" + std::to_string(path.size()) +
-                                ") num_nodes (" + std::to_string(num_nodes) + ")."};
+                                ") num_nodes (" + std::to_string(num_nodes) +
+                                ")." };
         std::cout << ("[Info] (pathCriteria2): " + msg + "\n");
     }
     return node_erased;
 }
 
-NodeOpt_t validatePath(Path_t& path)
+void validatePath(Path_t& path, std::vector<int>& indices, bool recursive)
 {
-    NodeOpt_t node_erased1{std::nullopt}, node_erased2{std::nullopt};
-    node_erased1 = pathCriteria1(path);
-    // node_erased2 = pathCriteria2(path);
-    if (node_erased1.has_value() and node_erased2.has_value()) {
-        if ((*node_erased1)->id < (*node_erased2)->id) {
-            return node_erased1;
-        }
-        return node_erased2;
-    }
-    if (node_erased1.has_value()) {
-        return node_erased1;
-    }
-    if (node_erased2.has_value()) {
-        return node_erased2;
-    }
-    return std::nullopt;
+    pathCriteria1(path, indices, recursive);
+    // pathCriteria2(path);
 }
 
 void initializePath(Path_t& path, Cities_t& cities)
@@ -622,8 +670,8 @@ void constructPath(Path_t& path, Cities_t& cities, int n)
     }
     for (int idx{ 0 }; idx != n; ++idx) {
         Node_t it{ it_begin + idx };
-        path.push_back(it);
         it->on_stack = false;
+        path.push_back(it);
     }
     for (int idx{ 0 }; idx != n; ++idx) {
         neighbourCost(idx, path, true);
@@ -646,8 +694,8 @@ void constructPath(Path_t& path, Cities_t& cities, int n, T rng)
     }
     for (int idx{ 0 }; idx != n; ++idx) {
         Node_t it{ it_begin + indices[idx] };
-        path.push_back(it);
         it->on_stack = false;
+        path.push_back(it);
     }
     for (int idx{ 0 }; idx != n; ++idx) {
         neighbourCost(idx, path, true);
@@ -815,13 +863,17 @@ void drawPath(const Path_t& path, const Cities_t& stack)
     }
 }
 
-void runDiscreteENN(Cities_t& stack, Path_t& path)
+void runDiscreteENN(Cities_t& stack, Path_t& path,
+                    [[maybe_unused]] std::default_random_engine& gen)
 {
     int iter_count{ 0 };
     [[maybe_unused]] const int num_cities = stack.size();
     const Node_t& it_begin{ stack.begin() };
     const Node_t& it_end{ stack.end() };
     Node_t it{ it_begin };
+    std::vector<int> indices;
+    bool randomize_node{ true };
+    constexpr bool recursive{ false };
     while (true) {
         if (it == it_end) {
             const bool finished = path.size() ==
@@ -840,12 +892,28 @@ void runDiscreteENN(Cities_t& stack, Path_t& path)
         std::cout << ("\n[Info] (runDiscreteENN): addNode\n");
         const int idx_added = addNode(path, it);
 
-        std::cout << ("\n[Info] (runDiscreteENN): updateCost\n");
-        updateCost(idx_added, path, true);
+        indices.clear();
+        std::cout
+            << ("\n[Info] (runDiscreteENN): addNode removeIntersection\n");
+        removeIntersection(idx_added, path, indices, recursive);
 
+        std::cout << ("\n[Info] (runDiscreteENN): addNode removeNodes\n");
+        const auto& it_erased1 = removeNodes(indices, path);
+
+        std::cout << ("\n[Info] (runDiscreteENN): addNode updateCosts\n");
+        updateCosts(path);
+
+        indices.clear();
         std::cout << ("\n[Info] (runDiscreteENN): validatePath\n");
-        const auto& it_erased = validatePath(path);
-        if (it_erased.has_value()) {
+        validatePath(path, indices, recursive);
+
+        std::cout << ("\n[Info] (runDiscreteENN): validatePath removeNodes\n");
+        const auto& it_erased2 = removeNodes(indices, path);
+
+        std::cout << ("\n[Info] (runDiscreteENN): validatePath updateCosts\n");
+        updateCosts(path);
+
+        if (it_erased1.has_value() or it_erased2.has_value()) {
             it = it_begin;
             // it = *it_erased;
             ++iter_count;
@@ -861,9 +929,14 @@ void runDiscreteENN(Cities_t& stack, Path_t& path)
         //     continue;
         // }
         // ++it;
-        ++iter_count;
-        if (iter_count > 1000) {
-            iter_count = 1001;
+        if (iter_count > 10000) {
+            if (randomize_node) {
+                randomize_node = false;
+                std::uniform_int_distribution<int> distrib(1, num_cities);
+                it = it_begin + distrib(gen);
+                continue;
+            }
+            iter_count = 10001;
             std::cout << ("\n[Info] (runDiscreteENN): drawPath started\n");
             drawPath(path, stack);
             std::cout << ("[Info] (runDiscreteENN): drawPath ended\n");

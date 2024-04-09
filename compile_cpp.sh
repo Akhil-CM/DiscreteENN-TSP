@@ -5,6 +5,6 @@ FLAGS_EXTRA="-lsfml-graphics -lsfml-window -lsfml-system"
 
 # COMPILER="clang++"
 COMPILER="g++"
-"$COMPILER" -std=c++17 -march=native -fstrict-aliasing -Wall -Wextra -pedantic -Weffc++ $FLAGS_EXTRA "$1" &&
-sleep 2 &&
-time ./a.out
+"$COMPILER" -std=c++17 -march=native -fstrict-aliasing -Wall -Wextra -pedantic -Weffc++ $FLAGS_EXTRA "$1"
+# sleep 2 &&
+# time ./a.out
