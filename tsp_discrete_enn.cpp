@@ -76,26 +76,25 @@ int main()
     // -------------------------------------------
     // Construct Path
     // -------------------------------------------
-    constexpr std::size_t num_nodes_initial{20};
+    constexpr std::size_t num_nodes_initial{3};
     // constructPath(path, cities, num_nodes_initial, rng);
     constructPath(path, stack, num_nodes_initial);
-    for (std::size_t idx{ 0 }; idx != num_nodes_initial; ++idx) {
-        path[idx]->on_stack = false;
-        neighbourCost(idx, path, true);
-    }
+    // for (std::size_t idx{ 0 }; idx != num_nodes_initial; ++idx) {
+    //     path[idx]->on_stack = false;
+    //     nodeCost(idx, path, true);
+    // }
     {
 
         constexpr bool recursive{false};
-        std::vector<int> indices;
-        std::cout << ("\n[Info] (main): validatePath\n");
-        validatePath(path, indices, recursive);
-        std::cout << "\n[Info] (main): Nodes to remove : " << indices.size() << '\n';
+#if (DEBUG_PRINT > 0)
+        std::cout << ("\n[Debug] (main): validatePath\n");
+#endif
+        validatePath(path, true, recursive);
 
-        std::cout << ("\n[Info] (main): validatePath removeNodes\n");
-        removeNodes(indices, path);
-
-        std::cout << ("\n[Info] (main): validatePath updateCosts\n");
-        updateCosts(path);
+#if (DEBUG_PRINT > 0)
+        std::cout << ("\n[Debug] (main): validatePath updateCostAll\n");
+#endif
+        updateCostAll(path);
     }
 
     // -------------------------------------------
