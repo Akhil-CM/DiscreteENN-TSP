@@ -77,7 +77,7 @@ int main()
     // Construct Path
     // -------------------------------------------
     // constructPath(path, cities, 3, rng);
-    constructPath(path, stack, 10);
+    constructPath(path, stack, 3);
     {
         const int num_nodes = path.size();
         for (int idx{ 0 }; idx != num_nodes; ++idx) {
@@ -99,6 +99,12 @@ int main()
     std::cout << line_str + "\n";
     assert("[Error]: path size not equal to stack size" &&
            (path.size() == stack.size()));
+
+    NodeOpt_t node_erased1 = pathCriteria1(path);
+    if(node_erased1.has_value()) {
+        std::cerr << "[Error]: Algoirthm has not found the optimal path\n";
+        exit(EXIT_FAILURE);
+    }
 
     // -------------------------------------------
     // Show results

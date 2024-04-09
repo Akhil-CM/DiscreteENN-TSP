@@ -14,6 +14,14 @@
 
 const std::string line_str = std::string{}.assign(30, '-');
 
+bool isNumber(const std::string& str)
+{
+    std::istringstream is(str);
+    double number{ 0.00 };
+    is >> std::noskipws >> number;
+    return is.eof() and !is.fail();
+}
+
 struct City
 {
     bool on_stack;
@@ -47,6 +55,51 @@ typedef std::vector<City> Cities_t;
 typedef Cities_t::iterator Node_t;
 typedef std::vector<Node_t> Path_t;
 typedef std::map<int, Cities_t> CityLayers_t;
+typedef std::optional<Node_t> NodeOpt_t;
+
+template <typename T> class MatchItem
+{
+public:
+    MatchItem(T item)
+        : m_item{ item }
+    {
+    }
+    bool operator()(const T& item)
+    {
+        return (item == m_item);
+    }
+    T& item()
+    {
+        return m_item;
+    }
+
+    const T& item() const
+    {
+        return m_item;
+    }
+
+private:
+    T m_item;
+};
+
+template <> bool MatchItem<City>::operator()(const City& city)
+{
+    return (city.id == m_item.id);
+}
+
+template <> bool MatchItem<Node_t>::operator()(const Node_t& node)
+{
+    return (node->id == m_item->id);
+}
+
+int findNode(const Node_t& node, const Path_t& path)
+{
+    const Path_t::const_iterator& it_begin{ path.begin() };
+    const Path_t::const_iterator& it_end{ path.end() };
+    const Path_t::const_iterator& it =
+        std::find_if(it_begin, it_end, MatchItem{ node });
+    return (it == it_end) ? -1 : std::distance(it_begin, it);
+}
 
 double distance(const City& a, const City& b)
 {
@@ -63,52 +116,9 @@ double insertionCost(const City& new_city, const City& cityA, const City& cityB)
 
 int properIndex(int index, int n)
 {
-    index = (index == -1) ? (n - 1) : index;
-    index = (index == n) ? 0 : index;
+    index = (index < 0) ? (n + index) : index;
+    index = (index > (n - 1)) ? (index - n) : index;
     return index;
-}
-
-bool isNumber(const std::string& str)
-{
-    std::istringstream is(str);
-    double number{ 0.00 };
-    is >> std::noskipws >> number;
-    return is.eof() and !is.fail();
-}
-
-void parseCities(Cities_t& cities, const std::string& filename)
-{
-    cities.clear();
-    cities.reserve(200);
-    std::ifstream in_file{ filename };
-    if (not in_file) {
-        std::cout << "[Error] (parseCities): Could not open " << filename
-                  << ". Exiting\n";
-        exit(EXIT_FAILURE);
-    }
-    std::string line;
-    int line_count{ 0 }, line_num{ 0 };
-    double x, y;
-    bool start_parse{ false };
-    while (std::getline(in_file, line)) {
-        std::string word;
-        std::istringstream tmp_stream(line);
-        tmp_stream >> word;
-        start_parse = isNumber(word);
-
-        if (start_parse) {
-            ++line_count;
-            std::istringstream line_stream(line);
-            line_stream >> line_num >> x >> y;
-            City city(-1, x, y);
-            cities.push_back(city);
-        }
-    }
-    assert(
-        "[Error] (parseCities): Number of coords parsed not equal to number of coords" &&
-        (line_count == line_num));
-    std::cout << "[Info] (parseCities): " << filename
-              << " parsed. Total number of coords : " << line_count << '\n';
 }
 
 struct MinMaxCoords
@@ -153,6 +163,41 @@ void getMinMaxCoords(const Cities_t& cities, MinMaxCoords& a)
         if (max_y < city.y)
             max_y = city.y;
     }
+}
+
+void parseCities(Cities_t& cities, const std::string& filename)
+{
+    cities.clear();
+    cities.reserve(200);
+    std::ifstream in_file{ filename };
+    if (not in_file) {
+        std::cout << "[Error] (parseCities): Could not open " << filename
+                  << ". Exiting\n";
+        exit(EXIT_FAILURE);
+    }
+    std::string line;
+    int line_count{ 0 }, line_num{ 0 };
+    double x, y;
+    bool start_parse{ false };
+    while (std::getline(in_file, line)) {
+        std::string word;
+        std::istringstream tmp_stream(line);
+        tmp_stream >> word;
+        start_parse = isNumber(word);
+
+        if (start_parse) {
+            ++line_count;
+            std::istringstream line_stream(line);
+            line_stream >> line_num >> x >> y;
+            City city(-1, x, y);
+            cities.push_back(city);
+        }
+    }
+    assert(
+        "[Error] (parseCities): Number of coords parsed not equal to number of coords" &&
+        (line_count == line_num));
+    std::cout << "[Info] (parseCities): " << filename
+              << " parsed. Total number of coords : " << line_count << '\n';
 }
 
 std::pair<int, int> createCityLayers(const Cities_t& cities,
@@ -268,29 +313,26 @@ void createStack(const Cities_t& cities, Cities_t& stack, int& layers)
     }
 }
 
-auto getNeigbhours(int index, Path_t& path)
-{
-    typedef std::tuple<Node_t, Node_t, Node_t> result_t;
-    const int n = path.size();
-    index = properIndex(index, n);
-    const int prev{ properIndex(index - 1, n) },
-        next{ properIndex(index + 1, n) };
-    return result_t{ path[prev], path[index], path[next] };
-}
-
 auto getNeigbhours(int index, int n)
 {
     typedef std::tuple<int, int, int> result_t;
-    index = properIndex(index, n);
-    return result_t{ properIndex(index - 1, n), index,
-                     properIndex(index + 1, n) };
+    const int curr = properIndex(index, n);
+    return result_t{ properIndex(curr - 1, n), curr, properIndex(curr + 1, n) };
 }
 
-double neighbourCost(int index, Path_t& path, bool update)
+auto getNeigbhours(int index, const Path_t& path)
+{
+    typedef std::tuple<Node_t, Node_t, Node_t> result_t;
+    const int n = path.size();
+    const auto [prev, curr, next] = getNeigbhours(index, n);
+    return result_t{ path[prev], path[curr], path[next] };
+}
+
+double neighbourCost(int index, const Path_t& path, bool update)
 {
     assert("[Error] (neighbourCost): given path size less than 3" &&
            (path.size() >= 3));
-    auto [node_prev, node, node_next] = getNeigbhours(index, path);
+    const auto [node_prev, node, node_next] = getNeigbhours(index, path);
     const double cost{ insertionCost(*node, *node_prev, *node_next) };
     if (update) {
         node->cost = cost;
@@ -303,8 +345,6 @@ void removeNode(int index, Path_t& path)
     path[index]->on_stack = true;
     path[index]->print();
     path.erase(path.begin() + index);
-    neighbourCost(index, path, true);
-    neighbourCost(index - 1, path, true);
 }
 
 double getArea(const City& a, const City& b, const City& c)
@@ -341,8 +381,9 @@ bool isInside(const Node_t& node, const Node_t& nodeA, const Node_t& nodeB,
     return (area_diff < tolerance);
 }
 
-void removeIntersection(int index, Path_t& path)
+NodeOpt_t removeIntersection(int index, Path_t& path)
 {
+    NodeOpt_t node_erased{ std::nullopt };
     int num_nodes = path.size();
     auto [node_prev, node_curr, node_next] = getNeigbhours(index, path);
     auto [idx_prev, idx_curr, idx_next] = getNeigbhours(index, num_nodes);
@@ -359,50 +400,70 @@ void removeIntersection(int index, Path_t& path)
         path[0]->print();
         std::cout << "FIRST CITY\n";
         path[idx]->print();
+        if (node_erased.has_value()) {
+            node_erased = (path[idx]->id < (*node_erased)->id) ? path[idx] : node_erased;
+        } else {
+            node_erased = path[idx];
+        }
         removeNode(idx, path);
+        neighbourCost(idx, path, true);
+        neighbourCost(idx - 1, path, true);
+        --num_nodes;
         node_prev->print();
         node_curr->print();
         node_next->print();
-        --num_nodes;
         const std::string& msg{ "path size (" + std::to_string(path.size()) +
                                 ") num_nodes (" + std::to_string(num_nodes) +
                                 ") index (" + std::to_string(index) +
                                 ") idx (" + std::to_string(idx) + ")." };
         std::cout << ("[Info] (removeIntersection): " + msg + "\n");
+        index = findNode(node_curr, path);
+        if (index == -1) {
+            std::cerr
+                << "[Error] (removeIntersection): node in path not found in path. Exiting.\n";
+            exit(EXIT_FAILURE);
+        }
         std::tie(idx_prev, idx_curr, idx_next) =
             getNeigbhours(index, num_nodes);
+        idx = 0;
     }
     // const std::string& msg{ "path size (" + std::to_string(path.size()) + ")" };
     // std::cout << ("[Info] (removeIntersection): " + msg + "\n");
+    return node_erased;
 }
 
-int findBestInsertion(const City& new_city, const Path_t& path)
+int findBestInsertion(const Node_t& node, const Path_t& path)
 {
     const int num_nodes = path.size();
     assert("[Error] (findBestInsertion): given path size less than 2" &&
            (num_nodes >= 2));
-    double min_cost{ insertionCost(new_city, *path.back(), *path[0]) };
-    int best_index{ 0 };
+    double min_cost{ std::numeric_limits<double>::max() };
+    int best_index{ -1 };
 
+    const City& new_city{ *node };
     for (int idx{ 0 }; idx != num_nodes; ++idx) {
         if (new_city.id == path[idx]->id) {
-            std::printf(
-                "[Error] (findBestInsertion): trying to add city that already exists in path.");
+            std::cerr
+                << ("[Error] (findBestInsertion): trying to add city that already exists in path.\n");
             new_city.print();
             exit(EXIT_FAILURE);
         }
         if (idx == (num_nodes - 1)) {
             continue;
         }
-        const double cost = insertionCost(new_city, *path[idx], *path[idx + 1]);
+        const double cost =
+            insertionCost(new_city, *(path[idx]), *(path[idx + 1]));
         if (cost < min_cost) {
             min_cost = cost;
             best_index = idx + 1;
         }
     }
+    if (insertionCost(new_city, *(path.back()), *(path[0])) < min_cost) {
+        best_index = 0;
+    }
 
     assert("[Error] (findBestInsertion): invalid index position found" &&
-           (best_index >= 0));
+           (best_index != -1));
 
     return best_index;
 }
@@ -410,19 +471,29 @@ int findBestInsertion(const City& new_city, const Path_t& path)
 int addNode(Path_t& path, const Node_t& node)
 {
     node->on_stack = false;
-    int position = findBestInsertion(*node, path);
+    int position = findBestInsertion(node, path);
     path.insert(path.begin() + position, node);
-    neighbourCost(position, path, true);
-    neighbourCost(position - 1, path, true);
-    neighbourCost(position + 1, path, true);
-
     path[0]->print();
     std::cout << "FIRST CITY\n";
     node->print();
     const std::string& msg{ "path size (" + std::to_string(path.size()) +
                             ") position : " + std::to_string(position) };
-    std::cout << ("[Info] (updatePath): " + msg + "\n");
+    std::cout << ("[Info] (addNode): " + msg + "\n");
+
+    std::cout << ("\n[Info] (addNode): removeIntersection\n");
     removeIntersection(position, path);
+
+    return position;
+}
+
+void updateCost(int index, const Path_t& path, bool neigbhours)
+{
+    const int idx_curr = properIndex(index, path.size());
+    neighbourCost(idx_curr, path, true);
+    if (neigbhours) {
+        neighbourCost(idx_curr - 1, path, true);
+        neighbourCost(idx_curr + 1, path, true);
+    }
 }
 
 bool validateNode(int index, const Path_t& path)
@@ -446,9 +517,9 @@ bool validateNode(int index, const Path_t& path)
     return true;
 }
 
-std::optional<Node_t> validatePath(Path_t& path)
+NodeOpt_t pathCriteria1(Path_t& path)
 {
-    std::optional<Node_t> node_erased{ std::nullopt };
+    NodeOpt_t node_erased{ std::nullopt };
     int num_nodes = path.size();
     for (int idx{ 0 }; idx != num_nodes;) {
         if (validateNode(idx, path)) {
@@ -467,14 +538,63 @@ std::optional<Node_t> validatePath(Path_t& path)
         std::cout << "FIRST CITY\n";
         path[idx]->print();
         removeNode(idx, path);
+        neighbourCost(idx, path, true);
+        neighbourCost(idx - 1, path, true);
         --num_nodes;
-        idx = 0;
         const std::string& msg{ "path size (" + std::to_string(path.size()) +
                                 ") num_nodes (" + std::to_string(num_nodes) +
                                 ") idx (" + std::to_string(idx) + ")." };
-        std::cout << ("[Info] (validatePath): " + msg + "\n");
+        std::cout << ("[Info] (pathCriteria1): " + msg + "\n");
+        idx = 0;
     }
     return node_erased;
+}
+
+NodeOpt_t pathCriteria2(Path_t& path)
+{
+    NodeOpt_t node_erased{ std::nullopt };
+    int num_nodes = path.size();
+    for (int idx{ 0 }; idx < num_nodes;) {
+        NodeOpt_t tmp = removeIntersection(idx, path);
+        if (not tmp.has_value()) {
+            ++idx;
+            continue;
+        }
+        if (node_erased.has_value()) {
+            node_erased = ((*tmp)->id < (*node_erased)->id) ? tmp : node_erased;
+        } else {
+            node_erased = tmp;
+        }
+        num_nodes = path.size();
+        idx = 0;
+        path[0]->print();
+        std::cout << "FIRST CITY\n";
+        (*tmp)->print();
+        const std::string& msg{ "path size (" + std::to_string(path.size()) +
+                                ") num_nodes (" + std::to_string(num_nodes) + ")."};
+        std::cout << ("[Info] (pathCriteria2): " + msg + "\n");
+    }
+    return node_erased;
+}
+
+NodeOpt_t validatePath(Path_t& path)
+{
+    NodeOpt_t node_erased1{std::nullopt}, node_erased2{std::nullopt};
+    node_erased1 = pathCriteria1(path);
+    // node_erased2 = pathCriteria2(path);
+    if (node_erased1.has_value() and node_erased2.has_value()) {
+        if ((*node_erased1)->id < (*node_erased2)->id) {
+            return node_erased1;
+        }
+        return node_erased2;
+    }
+    if (node_erased1.has_value()) {
+        return node_erased1;
+    }
+    if (node_erased2.has_value()) {
+        return node_erased2;
+    }
+    return std::nullopt;
 }
 
 void initializePath(Path_t& path, Cities_t& cities)
@@ -505,6 +625,9 @@ void constructPath(Path_t& path, Cities_t& cities, int n)
         path.push_back(it);
         it->on_stack = false;
     }
+    for (int idx{ 0 }; idx != n; ++idx) {
+        neighbourCost(idx, path, true);
+    }
     assert("[Error] (constructPath): constructed path size less than 3" &&
            (path.size() >= 3));
 }
@@ -525,6 +648,9 @@ void constructPath(Path_t& path, Cities_t& cities, int n, T rng)
         Node_t it{ it_begin + indices[idx] };
         path.push_back(it);
         it->on_stack = false;
+    }
+    for (int idx{ 0 }; idx != n; ++idx) {
+        neighbourCost(idx, path, true);
     }
     assert("[Error] (constructPath): constructed path size less than 3" &&
            (path.size() >= 3));
@@ -691,40 +817,56 @@ void drawPath(const Path_t& path, const Cities_t& stack)
 
 void runDiscreteENN(Cities_t& stack, Path_t& path)
 {
-    // const int num_cities = stack.size();
-    // int count_cities{0};
     int iter_count{ 0 };
-    for (Node_t it{ stack.begin() }; it != stack.end();) {
-        // if ((it + 1) == stack.end() and (count_cities + 1 != num_cities)) {
-        //     it = stack.begin();
-        // }
-        bool& on_stack{ it->on_stack };
-        if (not on_stack) {
+    [[maybe_unused]] const int num_cities = stack.size();
+    const Node_t& it_begin{ stack.begin() };
+    const Node_t& it_end{ stack.end() };
+    Node_t it{ it_begin };
+    while (true) {
+        if (it == it_end) {
+            const bool finished = path.size() ==
+                                  static_cast<std::size_t>(num_cities);
+            if (finished) {
+                break;
+            } else {
+                it = it_begin;
+            }
+        }
+        if (not it->on_stack) {
             ++it;
             continue;
         }
 
-        std::cout << ("[Info] (runDiscreteENN): updatePath\n");
-        updatePath(path, it);
+        std::cout << ("\n[Info] (runDiscreteENN): addNode\n");
+        const int idx_added = addNode(path, it);
 
-        std::cout << ("[Info] (runDiscreteENN): validatePath\n");
-        validatePath(path);
-        it = stack.begin();
+        std::cout << ("\n[Info] (runDiscreteENN): updateCost\n");
+        updateCost(idx_added, path, true);
+
+        std::cout << ("\n[Info] (runDiscreteENN): validatePath\n");
+        const auto& it_erased = validatePath(path);
+        if (it_erased.has_value()) {
+            it = it_begin;
+            // it = *it_erased;
+            ++iter_count;
+        }
 
         // std::cout << ("[Info] (runDiscreteENN): updatePath\n");
         // updatePath(path, it);
 
         // std::cout << ("[Info] (runDiscreteENN): validatePath\n");
-        // std::optional<Node_t> node_erased = validatePath(path);
+        // NodeOpt_t node_erased = validatePath(path);
         // if (node_erased.has_value()) {
         //     it = *node_erased;
         //     continue;
         // }
         // ++it;
         ++iter_count;
-        if (iter_count > 100) {
-            iter_count = 101;
+        if (iter_count > 1000) {
+            iter_count = 1001;
+            std::cout << ("\n[Info] (runDiscreteENN): drawPath started\n");
             drawPath(path, stack);
+            std::cout << ("[Info] (runDiscreteENN): drawPath ended\n");
         }
     }
 }
