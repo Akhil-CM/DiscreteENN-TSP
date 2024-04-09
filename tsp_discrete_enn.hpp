@@ -14,7 +14,7 @@
 
 #include <SFML/Graphics.hpp>
 
-#define DEBUG_PRINT 1
+#define DEBUG_PRINT 0
 
 const std::string line_str = std::string{}.assign(30, '-');
 
@@ -108,7 +108,9 @@ int findNode(Node_t node, const Path_t& path)
 void removeNode(std::size_t index, Path_t& path)
 {
     path[index]->on_stack = true;
+#if (DEBUG_PRINT > 0)
     path[index]->print();
+#endif
     path.erase(path.begin() + static_cast<int>(index));
 }
 
@@ -529,13 +531,15 @@ int addNode(Node_t node, Path_t& path)
     int position = findBestInsertion(node, path);
     node->on_stack = false;
     path.insert(path.begin() + position, node);
+#if (DEBUG_PRINT > 0)
     path[0]->print();
     std::cout << "FIRST CITY\n";
     node->print();
     std::cout << "Added City\n";
     const std::string& msg{ "path size (" + std::to_string(path.size()) +
                             ") position : " + std::to_string(position) };
-    std::cout << ("[Info] (addNode): " + msg + "\n");
+    std::cout << ("[Debug] (addNode): " + msg + "\n");
+#endif
 
     return position;
 }
