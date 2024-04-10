@@ -19,8 +19,15 @@ const std::string& Data_Filename_berlin{ "berlin52.tsp" };
 std::string Data_Filename{ "" };
 stdfs::path Data_FilePath;
 
-int main()
+int main(int argc, char** argv)
 {
+    std::vector<std::string> args(argc - 1);
+    for (int idx{1}; idx < argc; ++idx) {
+        args[idx - 1] = std::string(argv[idx]);
+#if (DEBUG_PRINT > 1)
+        std::cout << "#" << idx << " flag " << args[idx - 1] << '\n';
+#endif
+    }
     // -------------------------------------------
     // Seed and initialize rng
     // -------------------------------------------
@@ -136,6 +143,7 @@ int main()
     std::cout << "[Info]: Total distance is : " << dist << '\n';
     std::cout << line_str + "\n";
 
+    if (not vectContains(std::string{"--batch"}, args))
     {
         drawPath(path, stack);
     }

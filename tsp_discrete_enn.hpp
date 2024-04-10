@@ -861,6 +861,7 @@ void runDiscreteENN(Cities_t& stack, Path_t& path,
     Node_t it{ it_begin };
     std::vector<int> indices;
     bool randomize_node{ true };
+    constexpr int iter_randomize{ 100 };
     constexpr bool recursive{ false };
     while (true) {
         if (it == it_end) {
@@ -915,7 +916,7 @@ void runDiscreteENN(Cities_t& stack, Path_t& path,
             ++iter_count;
         }
 
-        if (iter_count > 10000) {
+        if (iter_count > iter_randomize) {
             if (randomize_node) {
                 // randomize_node = false;
                 std::uniform_int_distribution<int> distrib(1, num_cities);
@@ -923,7 +924,7 @@ void runDiscreteENN(Cities_t& stack, Path_t& path,
                 continue;
             }
             iter_count = 0;
-            // iter_count = 10001;
+            // iter_count = iter_randomize + 1;
 #if (DEBUG_PRINT > 0)
             std::cout << ("\n[Debug] (runDiscreteENN): drawPath started\n");
 #endif
