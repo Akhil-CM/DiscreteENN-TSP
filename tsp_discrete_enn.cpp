@@ -57,7 +57,7 @@ int main(int argc, char** argv)
     initializePath(path, cities);
     if (path.size() == static_cast<std::size_t>(num_cities)) {
         std::printf("[Info]: Algorithm complete. Only %d number of cities provided.", num_cities);
-        exit(EXIT_SUCCESS);
+        return EXIT_FAILURE;
     }
 
     // -------------------------------------------
@@ -92,37 +92,51 @@ int main(int argc, char** argv)
     // }
     {
 
-        constexpr bool recursive{false};
 #if (DEBUG_PRINT > 0)
         std::cout << ("\n[Debug] (main): validatePath\n");
 #endif
-        validatePath(path, true, recursive);
+        NodeExp<bool> erased = validatePath(path, Validation_Intersection, Intersection_Recursive);
+        if (erased.err()) {
+            std::cerr << "[Error] (main): validatePath failed\n";
+            return EXIT_FAILURE;
+        }
 
 #if (DEBUG_PRINT > 0)
         std::cout << ("\n[Debug] (main): validatePath updateCostAll\n");
 #endif
-        updateCostAll(path);
+        const auto [success, idx] = updateCostAll(path);
+        if (not success) {
+            std::cerr
+                << "[Error] (main): updateCostAll failed at index "
+                << idx << '\n';
+            return EXIT_FAILURE;
+        }
     }
 
     // -------------------------------------------
     // Run Discrete ENN
     // -------------------------------------------
+    std::cout << ("\n[Info] (main): Run Discrete ENN Algorithm\n");
     TimePoint_t start_time = std::chrono::steady_clock::now();
-    runDiscreteENN(stack, path, rng);
+    const bool success = runDiscreteENN(stack, path, rng);
     TimePoint_t end_time = std::chrono::steady_clock::now();
+    if (not success) {
+        std::cerr << "[Error] (main): Discrete ENN run failed.\n";
+        return EXIT_FAILURE;
+    }
     auto delta = std::chrono::duration_cast<TimeUnit_t>(end_time - start_time);
     const auto duration = delta.count();
-    std::cout << "\n" + line_str + "\n";
-    std::cout << "[Info]: Algorithm finished in " << duration << time_unit + "\n";
-    std::cout << line_str + "\n";
-    assert("[Error]: path size not equal to stack size" &&
+    std::cout << "\n" + Line_Str + "\n";
+    std::cout << "[Info] (main): Algorithm finished in " << duration << time_unit + "\n";
+    std::cout << Line_Str + "\n";
+    assert("[Error] (main): path size not equal to stack size" &&
            (path.size() == stack.size()));
 
     const int num_nodes = path.size();
     for (int idx{ 0 }; idx != num_nodes; ++idx) {
         if (not validateNode(idx, path)) {
-            std::cerr << "[Error]: Algoirthm has not found the optimal path\n";
-            exit(EXIT_FAILURE);
+            std::cerr << "[Error] (main): Algoirthm has not found the optimal path\n";
+            return EXIT_FAILURE;
         }
     }
 
@@ -136,12 +150,12 @@ int main(int argc, char** argv)
         dist += distance(*path[idx], *path[properIndex(idx + 1, num_nodes)]);
         if (not validateNode(idx, path)) {
             std::cerr << "[Error]: Final path has invalid node. Exiting\n";
-            exit(EXIT_FAILURE);
+            return EXIT_FAILURE;
         }
     }
-    std::cout << "\n" + line_str + "\n";
+    std::cout << "\n" + Line_Str + "\n";
     std::cout << "[Info]: Total distance is : " << dist << '\n';
-    std::cout << line_str + "\n";
+    std::cout << Line_Str + "\n";
 
     if (not vectContains(std::string{"--batch"}, args))
     {

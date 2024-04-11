@@ -11,12 +11,75 @@
 #include <map>
 #include <cmath>
 #include <cassert>
+#include <tuple>
+#include <utility>
 
 #include <SFML/Graphics.hpp>
 
 #define DEBUG_PRINT 0
 
-const std::string line_str = std::string{}.assign(30, '-');
+const std::string Line_Str = std::string{}.assign(30, '-');
+constexpr bool Intersection_Recursive{false};
+constexpr bool Validation_Intersection{false};
+
+// Expected type helpers
+template <typename T, typename E> class Expected
+{
+public:
+    Expected()
+        : m_opt{ std::nullopt }
+        , m_err{}
+    {
+    }
+    Expected(const T& val, const E& err)
+        : m_opt{ val }
+        , m_err{ err }
+    {
+    }
+    Expected(const std::optional<T>& opt, const E& err)
+        : m_opt{ opt }
+        , m_err{ err }
+    {
+    }
+
+    bool has_value() const
+    {
+        return m_opt.has_value();
+    }
+
+    std::optional<T>& opt()
+    {
+        return m_opt;
+    }
+    const std::optional<T>& opt() const
+    {
+        return m_opt;
+    }
+
+    T& val()
+    {
+        return *m_opt;
+    }
+    const T& val() const
+    {
+        return *m_opt;
+    }
+
+    E& err()
+    {
+        return m_err;
+    }
+    const E& err() const
+    {
+        return m_err;
+    }
+
+private:
+    std::optional<T> m_opt;
+    E m_err;
+};
+
+template <typename T> using ExpectedMsg = Expected<T, std::string>;
 
 bool isNumber(const std::string& str)
 {
@@ -44,9 +107,9 @@ struct City
 
     void print() const
     {
-        std::printf("%s\n", line_str.c_str());
+        std::printf("%s\n", Line_Str.c_str());
         std::printf("[Info]: City details\n");
-        std::printf("%s\n", line_str.c_str());
+        std::printf("%s\n", Line_Str.c_str());
         std::printf("ID : %d\n", id);
         std::printf("Layer : %d\n", layer);
         std::printf("(x, y) : (%f, %f)\n", x, y);
@@ -60,6 +123,7 @@ typedef Cities_t::iterator Node_t;
 typedef std::vector<Node_t> Path_t;
 typedef std::map<int, Cities_t> CityLayers_t;
 typedef std::optional<Node_t> NodeOpt_t;
+template <typename T> using NodeExp = Expected<Node_t, T>;
 
 template <typename T> class MatchItem
 {
@@ -358,12 +422,12 @@ double nodeCost(int index, const Path_t& path, bool update)
     if (num_nodes < 3) {
         std::cerr
             << "[Error] (nodeCost): given path size less than 3. Exiting\n";
-        exit(EXIT_FAILURE);
+        return -1.0;
     }
     if (index >= num_nodes) {
         std::cerr
             << "[Error] (nodeCost): given index size greater than number of nodes in path. Exiting\n";
-        exit(EXIT_FAILURE);
+        return -1.0;
     }
     const auto [node_prev, node, node_next] = getNeigbhours(index, path);
     const double cost{ insertionCost(*node, *node_prev, *node_next) };
@@ -479,6 +543,25 @@ NodeOpt_t removeIntersection(Node_t node_prev, Node_t node_curr,
     return node_erased;
 }
 
+template<typename T>
+bool hasRepeatingPattern(const std::vector<T>& vect, int n)
+{
+    if (vect.size() < static_cast<std::size_t>(2 * n)) { // If there aren't enough elements for a duplicate
+        return false;
+    }
+
+    const auto it_begin_last10 = vect.end() - n;
+    const auto it_end = vect.end();
+
+    for (auto it = vect.begin(); it != it_end - 2 * n; ++it) {
+        if (std::equal(it_begin_last10, it_end, it)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 template <typename T>
 bool vectContains(const T& item, const std::vector<T>& vect)
 {
@@ -526,38 +609,47 @@ int findBestInsertion(Node_t node, const Path_t& path)
     return best_index;
 }
 
-int addNode(Node_t node, Path_t& path)
+void addNode(int index, Node_t node, Path_t& path)
 {
-    int position = findBestInsertion(node, path);
     node->on_stack = false;
-    path.insert(path.begin() + position, node);
+    path.insert(path.begin() + index, node);
 #if (DEBUG_PRINT > 0)
     path[0]->print();
     std::cout << "FIRST CITY\n";
     node->print();
     std::cout << "Added City\n";
     const std::string& msg{ "path size (" + std::to_string(path.size()) +
-                            ") position : " + std::to_string(position) };
+                            ") position : " + std::to_string(index) };
     std::cout << ("[Debug] (addNode): " + msg + "\n");
 #endif
-
-    return position;
 }
 
-void updateCostNeighbour(int index, const Path_t& path)
+std::pair<bool, int> updateCostNeighbour(int index, const Path_t& path)
 {
     const int idx_curr = properIndex(index, path.size());
-    nodeCost(idx_curr, path, true);
-    nodeCost(idx_curr - 1, path, true);
-    nodeCost(idx_curr + 1, path, true);
+    if (nodeCost(idx_curr, path, true) < 0.0) {
+        return std::pair<bool, int>{ false, idx_curr };
+    }
+    if (nodeCost(idx_curr - 1, path, true) < 0.0) {
+        return std::pair<bool, int>{ false,
+                                     properIndex(idx_curr - 1, path.size()) };
+    }
+    if (nodeCost(idx_curr + 1, path, true) < 0.0) {
+        return std::pair<bool, int>{ false,
+                                     properIndex(idx_curr + 1, path.size()) };
+    }
+    return std::pair<bool, int>{ true, idx_curr };
 }
 
-void updateCostAll(const Path_t& path)
+std::pair<bool, int> updateCostAll(const Path_t& path)
 {
     const int num_nodes = path.size();
     for (int idx{ 0 }; idx != num_nodes; ++idx) {
-        nodeCost(idx, path, true);
+        if (nodeCost(idx, path, true) < 0.0) {
+            return std::pair<bool, int>{ false, idx };
+        }
     }
+    return std::pair<bool, int>{ true, num_nodes };
 }
 
 bool validateNode(int index, const Path_t& path)
@@ -583,10 +675,11 @@ bool validateNode(int index, const Path_t& path)
     return true;
 }
 
-NodeOpt_t validatePath(Path_t& path, bool intersection, bool recursive)
+NodeExp<bool> validatePath(Path_t& path, bool intersection, bool recursive)
 {
     NodeOpt_t node_erased{ std::nullopt };
     int num_nodes = path.size();
+    int num_nodes_prev{0};
     for (int idx{ 0 }; idx != num_nodes;) {
 #if (DEBUG_PRINT > 1)
         const std::string& msg{ "idx (" + std::to_string(idx) +
@@ -604,6 +697,7 @@ NodeOpt_t validatePath(Path_t& path, bool intersection, bool recursive)
 #endif
         const Node_t node{ path[static_cast<std::size_t>(idx)] };
         removeNode(node, path);
+        num_nodes_prev = num_nodes;
         --num_nodes;
         if (node_erased.has_value()) {
             node_erased = (node->id < (*node_erased)->id) ? node : node_erased;
@@ -628,13 +722,20 @@ NodeOpt_t validatePath(Path_t& path, bool intersection, bool recursive)
 #if (DEBUG_PRINT > 1)
         std::cout << ("[Debug] (validatePath): Done 3\n");
 #endif
+        const auto [success, idx_fail] = updateCostAll(path);
+        if (not success) {
+            std::cerr
+                << "[Error] (validatePath): updateCostAll failed at index "
+                << idx_fail << " path size " << path.size() << " num_nodes " << num_nodes << " previous size "
+                << num_nodes_prev << std::endl;
+            return NodeExp<bool>{ std::nullopt, true };
+        }
         idx = 0;
-        updateCostAll(path);
 #if (DEBUG_PRINT > 1)
         std::cout << ("[Debug] (validatePath): Done 4\n");
 #endif
     }
-    return node_erased;
+    return { node_erased, false };
 }
 
 void initializePath(Path_t& path, Cities_t& cities)
@@ -851,18 +952,21 @@ void drawPath(const Path_t& path, const Cities_t& stack)
     }
 }
 
-void runDiscreteENN(Cities_t& stack, Path_t& path,
+bool runDiscreteENN(Cities_t& stack, Path_t& path,
                     [[maybe_unused]] std::default_random_engine& gen)
 {
-    int iter_count{ 0 };
+    [[maybe_unused]] int iter_count{ 0 };
     [[maybe_unused]] const int num_cities = stack.size();
     const Node_t& it_begin{ stack.begin() };
     const Node_t& it_end{ stack.end() };
     Node_t it{ it_begin };
     std::vector<int> indices;
     bool randomize_node{ true };
-    constexpr int iter_randomize{ 100 };
+    constexpr int iter_randomize{ 1000 };
+    constexpr int len_repeat{ 50 };
     constexpr bool recursive{ false };
+    std::vector<int> indices_added;
+    indices_added.reserve(iter_randomize);
     while (true) {
         if (it == it_end) {
             const bool finished = path.size() ==
@@ -881,8 +985,18 @@ void runDiscreteENN(Cities_t& stack, Path_t& path,
 #if (DEBUG_PRINT > 0)
         std::cout << ("\n[Debug] (runDiscreteENN): addNode\n");
 #endif
-        const int idx_added = addNode(it, path);
-        updateCostNeighbour(idx_added, path);
+        const int idx_added = findBestInsertion(it, path);
+        addNode(idx_added, it, path);
+        {
+            const auto [success, idx] = updateCostNeighbour(idx_added, path);
+            if (not success) {
+                std::cerr
+                    << "[Error] (runDiscreteENN): updateCostNeighbour failed at index "
+                    << idx << " for index added " << idx_added << '\n';
+                return false;
+            }
+        }
+        indices_added.push_back(idx_added);
 
 #if (DEBUG_PRINT > 0)
         std::cout
@@ -890,41 +1004,56 @@ void runDiscreteENN(Cities_t& stack, Path_t& path,
 #endif
         const auto [node_prev, node_curr, node_next] =
             getNeigbhours(idx_added, path);
-        const auto& it_erased1 = removeIntersection(node_prev, node_curr,
-                                                    node_next, path, recursive);
+        const auto it_erased1 = removeIntersection(node_prev, node_curr,
+                                                   node_next, path, recursive);
 
         if (it_erased1.has_value()) {
 #if (DEBUG_PRINT > 0)
-            std::cout << ("\n[Debug] (runDiscreteENN): addNode updateCostAll\n");
+            std::cout
+                << ("\n[Debug] (runDiscreteENN): addNode updateCostAll\n");
 #endif
-            updateCostAll(path);
+            const auto [success, idx] = updateCostAll(path);
+            if (not success) {
+                std::cerr
+                    << "[Error] (runDiscreteENN): updateCostAll failed at index "
+                    << idx << '\n';
+                return false;
+            }
         }
 
 #if (DEBUG_PRINT > 0)
         std::cout << ("\n[Debug] (runDiscreteENN): validatePath\n");
 #endif
-        const auto& it_erased2 = validatePath(path, true, recursive);
+        const auto it_erased2 = validatePath(path, Validation_Intersection, Intersection_Recursive);
+        if (it_erased2.err()) {
+            std::cerr << "[Error] (runDiscreteENN): validatePath failed\n";
+            return false;
+        }
 
 #if (DEBUG_PRINT > 0)
         std::cout
             << ("\n[Debug] (runDiscreteENN): validatePath updateCostAll\n");
 #endif
-        updateCostAll(path);
+        const auto [success, idx] = updateCostAll(path);
+        if (not success) {
+            std::cerr
+                << "[Error] (runDiscreteENN): updateCostAll failed at index "
+                << idx << '\n';
+            return false;
+        }
 
         if (it_erased1.has_value() or it_erased2.has_value()) {
             it = it_begin;
-            ++iter_count;
         }
 
-        if (iter_count > iter_randomize) {
+        if (indices_added.size() > iter_randomize and hasRepeatingPattern(indices_added, len_repeat)) {
             if (randomize_node) {
-                // randomize_node = false;
+                indices_added.resize(0);
                 std::uniform_int_distribution<int> distrib(1, num_cities);
                 it = it_begin + distrib(gen);
                 continue;
             }
-            iter_count = 0;
-            // iter_count = iter_randomize + 1;
+            indices_added.pop_back();
 #if (DEBUG_PRINT > 0)
             std::cout << ("\n[Debug] (runDiscreteENN): drawPath started\n");
 #endif
@@ -934,4 +1063,5 @@ void runDiscreteENN(Cities_t& stack, Path_t& path,
 #endif
         }
     }
+    return true;
 }
