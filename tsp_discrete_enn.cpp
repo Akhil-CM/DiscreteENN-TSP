@@ -1,8 +1,6 @@
 // -*- C++ -*-
 #include "tsp_discrete_enn.hpp"
 
-#include <cstddef>
-#include <cstdlib>
 #include <chrono>
 #include <filesystem>
 
@@ -37,6 +35,10 @@ int main(int argc, char** argv)
     // -------------------------------------------
     // Create data file
     // -------------------------------------------
+    if (utils::vectContains(std::string{ "--input" }, args)) {
+        const auto it = std::find_if(args.begin(), args.end(), utils::MatchItem<std::string>{ "--input" });
+        Data_Filename = *(it + 1);
+    }
     if (Data_Filename.empty()) {
         Data_Filename = Data_Filename_berlin;
     }
@@ -72,7 +74,7 @@ int main(int argc, char** argv)
     enn_tsp.initialSize() = Num_Nodes_Initial;
     enn_tsp.intersection() = Validation_Intersection;
     enn_tsp.recursive() = Intersection_Recursive;
-    enn_tsp.iterRandomize() = Intersection_Recursive;
+    enn_tsp.iterRandomize() = Iter_Randomize;
     enn_tsp.repeatLength() = Repeat_Check_Length;
 
     // -------------------------------------------
@@ -164,7 +166,7 @@ int main(int argc, char** argv)
     // Show results
     // -------------------------------------------
     std::cout << "[Info]: Print results\n";
-    double dist{ 0.0 };
+    Value_t dist{ 0.0 };
     for (std::size_t idx{ 0 }; idx != num_nodes; ++idx) {
         // path[idx]->print();
         dist += distance(*path[idx], *path[enn_tsp.properIndex(idx + 1)]);
@@ -174,7 +176,8 @@ int main(int argc, char** argv)
     std::cout << utils::Line_Str + "\n";
 
     if (not utils::vectContains(std::string{ "--batch" }, args)) {
-        drawPath(path, enn_tsp.stack());
+        const bool show_coords{ utils::vectContains(std::string{"--show-coords"}, args) };
+        drawPath(path, enn_tsp.stack(), show_coords);
     }
 
     return 0;

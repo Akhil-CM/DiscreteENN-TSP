@@ -30,11 +30,11 @@ using utils::ErrorBool, utils::ErrorMsg;
 
 typedef float Value_t;
 
-constexpr std::size_t Num_Nodes_Initial{3};
+constexpr std::size_t Num_Nodes_Initial{ 3 };
 constexpr bool Validation_Intersection{ false };
 constexpr bool Intersection_Recursive{ false };
 constexpr int Iter_Randomize{ 1000 };
-constexpr int Repeat_Check_Length{ 50 };
+constexpr int Repeat_Check_Length{ 100 };
 
 struct City
 {
@@ -97,7 +97,8 @@ void parseCities(Cities_t& cities, const std::string& filename)
     Value_t x, y;
     bool start_parse{ false };
     while (std::getline(in_file, line)) {
-        if (line.empty()) continue;
+        if (line.empty())
+            continue;
         std::string word{ line.substr(
             0, line.find_first_of(utils::Whitespace_Str)) };
         start_parse = utils::isNumber(word);
@@ -332,27 +333,34 @@ bool isCollinearAndBetween(const City& c, const City& a, const City& b)
     return std::min(a.x, b.x) <= c.x && c.x <= std::max(a.x, b.x) &&
            std::min(a.y, b.y) <= c.y && c.y <= std::max(a.y, b.y);
 }
+
+bool isCollinear(Node_t nodeA, Node_t nodeB, Node_t nodeC)
+{
+    const Value_t area_total = getArea(*nodeA, *nodeB, *nodeC);
+
+    return (std::abs(area_total) < utils::tolerance);
+}
+
 bool isInside(Node_t node, Node_t nodeA, Node_t nodeB, Node_t nodeC)
 {
-    constexpr double tolerance = 1e-8;
-    const double area_total = getArea(*nodeA, *nodeB, *nodeC);
+    const Value_t area_total = getArea(*nodeA, *nodeB, *nodeC);
 
-    const double area1 = getArea(*node, *nodeA, *nodeB);
-    const double area2 = getArea(*node, *nodeB, *nodeC);
-    const double area3 = getArea(*node, *nodeC, *nodeA);
+    const Value_t area1 = getArea(*node, *nodeA, *nodeB);
+    const Value_t area2 = getArea(*node, *nodeB, *nodeC);
+    const Value_t area3 = getArea(*node, *nodeC, *nodeA);
 
-    if (std::abs(area1) < tolerance) {
+    if (std::abs(area1) < utils::tolerance) {
         return isCollinearAndBetween(*node, *nodeA, *nodeB);
     }
-    if (std::abs(area2) < tolerance) {
+    if (std::abs(area2) < utils::tolerance) {
         return isCollinearAndBetween(*node, *nodeB, *nodeC);
     }
-    if (std::abs(area3) < tolerance) {
+    if (std::abs(area3) < utils::tolerance) {
         return isCollinearAndBetween(*node, *nodeC, *nodeA);
     }
 
-    const double area_diff = std::abs(area_total - (area1 + area2 + area3));
-    return (area_diff < tolerance);
+    const Value_t area_diff = std::abs(area_total - (area1 + area2 + area3));
+    return (area_diff < utils::tolerance);
 }
 
 class DiscreteENN_TSP
@@ -388,7 +396,6 @@ public:
     {
         return m_repeatLen;
     }
-
 
     int properIndex(int index)
     {
@@ -545,7 +552,10 @@ public:
                 "nodeCost");
             return -1.0;
         }
-        const Value_t cost{ insertionCost(*node_curr, *node_prev, *node_next) };
+        const Value_t cost =
+            isCollinear(node_curr, node_prev, node_next) ?
+                0.0 :
+                insertionCost(*node_curr, *node_prev, *node_next);
         if (update) {
             node->cost = cost;
         }
@@ -702,26 +712,95 @@ public:
             return std::make_pair(-1, true);
         }
         if (nodeCost(node_curr, true) < 0.0) {
-            utils::printErr("Invalid node cost calculate for node at " +
+            utils::printErr("Invalid node cost calculate for node curr at " +
                                 std::to_string(index) + " current path size " +
                                 std::to_string(m_path.size()),
                             "updateCostNeighbour");
+            utils::printErr("Previous node " +
+                                std::to_string(findNode(node_prev)),
+                            "updateCostNeighbour");
+            node_prev->print();
+            utils::printErr("Current node " +
+                                std::to_string(findNode(node_curr)),
+                            "updateCostNeighbour");
+            node_curr->print();
+            utils::printErr("Next node " + std::to_string(findNode(node_next)),
+                            "updateCostNeighbour");
+            node_next->print();
+            utils::printErr(
+                "Distances : " +
+                    std::to_string(distance(*node_curr, *node_next)) + ", " +
+                    std::to_string(distance(*node_curr, *node_prev)) + ", " +
+                    std::to_string(distance(*node_prev, *node_next)),
+                "updateCostNeighbour");
             return std::make_pair(index, true);
         }
         if (nodeCost(node_prev, true) < 0.0) {
-            utils::printErr("Invalid node cost calculate for node at " +
+            const utils::Expected nodes = getNeigbhours(node_prev);
+            if (nodes.err()) {
+                utils::printErr("Failed to get the neighbour nodes for index " +
+                                    std::to_string(findNode(node_prev)) +
+                                    " current path size " +
+                                    std::to_string(m_path.size()),
+                                "updateCostNeighbour");
+            }
+            const auto [node_prev, node_curr, node_next] = nodes.value();
+            utils::printErr("Invalid node cost calculate for node prev at " +
                                 std::to_string(properIndex(index - 1)) +
                                 " current path size " +
                                 std::to_string(m_path.size()),
                             "updateCostNeighbour");
+            utils::printErr("Previous node " +
+                                std::to_string(findNode(node_prev)),
+                            "updateCostNeighbour");
+            node_prev->print();
+            utils::printErr("Current node " +
+                                std::to_string(findNode(node_curr)),
+                            "updateCostNeighbour");
+            node_curr->print();
+            utils::printErr("Next node " + std::to_string(findNode(node_next)),
+                            "updateCostNeighbour");
+            node_next->print();
+            utils::printErr(
+                "Distances : " +
+                    std::to_string(distance(*node_curr, *node_next)) + ", " +
+                    std::to_string(distance(*node_curr, *node_prev)) + ", " +
+                    std::to_string(distance(*node_prev, *node_next)),
+                "updateCostNeighbour");
             return std::make_pair(properIndex(index - 1), true);
         }
         if (nodeCost(node_next, true) < 0.0) {
-            utils::printErr("Invalid node cost calculate for node at " +
+            const utils::Expected nodes = getNeigbhours(node_next);
+            if (nodes.err()) {
+                utils::printErr("Failed to get the neighbour nodes for index " +
+                                    std::to_string(findNode(node_next)) +
+                                    " current path size " +
+                                    std::to_string(m_path.size()),
+                                "updateCostNeighbour");
+            }
+            const auto [node_prev, node_curr, node_next] = nodes.value();
+            utils::printErr("Invalid node cost calculate for node next at " +
                                 std::to_string(properIndex(index + 1)) +
                                 " current path size " +
                                 std::to_string(m_path.size()),
                             "updateCostNeighbour");
+            utils::printErr("Previous node " +
+                                std::to_string(findNode(node_prev)),
+                            "updateCostNeighbour");
+            node_prev->print();
+            utils::printErr("Current node " +
+                                std::to_string(findNode(node_curr)),
+                            "updateCostNeighbour");
+            node_curr->print();
+            utils::printErr("Next node " + std::to_string(findNode(node_next)),
+                            "updateCostNeighbour");
+            node_next->print();
+            utils::printErr(
+                "Distances : " +
+                    std::to_string(distance(*node_curr, *node_next)) + ", " +
+                    std::to_string(distance(*node_curr, *node_prev)) + ", " +
+                    std::to_string(distance(*node_prev, *node_next)),
+                "updateCostNeighbour");
             return std::make_pair(properIndex(index + 1), true);
         }
         return std::make_pair(index, false);
@@ -865,7 +944,9 @@ public:
         std::vector<int> indices_added;
         indices_added.reserve(static_cast<std::size_t>(m_iterRandomize));
         for (Node_t it{ it_begin }; it != it_end;) {
-            if (it->on_stack) {
+            if (not it->on_stack) {
+                ++it;
+            } else {
 #if (TSP_DEBUG_PRINT > 0)
                 std::cout << ("\n[Debug] (run): addNode\n");
 #endif
@@ -882,8 +963,7 @@ public:
                 }
                 indices_added.push_back(idx_added);
 #if (TSP_DEBUG_PRINT > 0)
-                std::cout
-                    << ("\n[Debug] (run): addNode removeIntersection\n");
+                std::cout << ("\n[Debug] (run): addNode removeIntersection\n");
 #endif
 
                 const utils::Expected nodes = getNeigbhours(it);
@@ -931,26 +1011,35 @@ public:
 
                 if (it_erased1.has_value() or it_erased2.has_value()) {
                     it = it_begin;
-                    continue;
+                    // continue;
                 }
 
                 if (indices_added.size() >
-                        static_cast<std::size_t>(m_iterRandomize) and
-                    utils::hasRepeatingPattern(indices_added,
-                                               m_repeatLen)) {
+                    static_cast<std::size_t>(m_iterRandomize)) {
+                    // utils::printInfo("Many indices added : " +
+                    //                      std::to_string(indices_added.size()),
+                    //                  "run");
+                    const bool repeating{ utils::hasRepeatingPattern(
+                        indices_added, m_repeatLen) };
                     indices_added.resize(0);
-                    std::uniform_int_distribution<int> distrib(0,
-                                                               num_cities - 1);
-                    it = it_begin + distrib(gen);
-                    continue;
+                    if (repeating) {
+                        utils::printInfo("Found repeating pattern. Randomize input node", "run");
+                        utils::printInfo("Path progress " +
+                                             std::to_string(m_path.size()) +
+                                             "/" + std::to_string(num_cities),
+                                         "run");
+                        std::uniform_int_distribution<int> distrib(
+                            0, num_cities - 1);
+                        it = it_begin + distrib(gen);
+                        continue;
 #if (TSP_DEBUG_PRINT > 0)
-                    std::cout
-                        << ("\n[Debug] (run): drawPath started\n");
+                        std::cout << ("\n[Debug] (run): drawPath started\n");
 #endif
-                    // drawPath(path, stack);
+                        // drawPath(path, stack, true);
 #if (TSP_DEBUG_PRINT > 0)
-                    std::cout << ("[Debug] (run): drawPath ended\n");
+                        std::cout << ("[Debug] (run): drawPath ended\n");
 #endif
+                    }
                 }
             }
 
@@ -960,12 +1049,11 @@ public:
             //             const auto [success, idx] = updateCostAll(path);
             //             if (not success) {
             //                 std::cerr
-            //                     << "[Error] (runDiscreteENN): updateCostAll failed at index "
+            //                     << "[Error] (run): updateCostAll failed at index "
             //                     << idx << '\n';
             //                 return false;
             //             }
 
-            ++it;
             if (it == it_end) {
                 const bool finished = m_path.size() ==
                                       static_cast<std::size_t>(num_cities);
@@ -1071,7 +1159,7 @@ void fitPointsInWindow(Cities_t& cities, const sf::Vector2u& windowSize,
     }
 }
 
-void drawPath(const Path_t& path, const Cities_t& stack)
+void drawPath(const Path_t& path, const Cities_t& stack, bool show_coords)
 {
     // Get the current desktop video mode
     [[maybe_unused]] sf::VideoMode desktopMode =
@@ -1079,6 +1167,7 @@ void drawPath(const Path_t& path, const Cities_t& stack)
     // Create a full-screen window using the current desktop resolution
     MinMaxCoords minmax_coords;
     minmax_coords.update(stack);
+    const auto [min_coord, max_coord] = minmax_coords.minmax();
     // sf::RenderWindow window(sf::VideoMode(minmax_coords.max_x,
     //                                       minmax_coords.max_y),
     //                         "Polygon Plot. Press Any Key to Close");
@@ -1086,9 +1175,10 @@ void drawPath(const Path_t& path, const Cities_t& stack)
     // sf::VideoMode(minmax_coords.max_x, minmax_coords.max_y),
     // "Polygon Plot. Press Any Key to Close", sf::Style::Fullscreen);
     // sf::RenderWindow window(sf::VideoMode(800, 600), "Polygon Plot. Press Any Key to Close", sf::Style::Fullscreen);
-    // sf::RenderWindow window(sf::VideoMode(800, 600), "Polygon Plot. Press Any Key to Close");
-    sf::RenderWindow window(desktopMode, "Polygon Plot. Press Any Key to Close",
-                            sf::Style::Fullscreen);
+    // sf::RenderWindow window(desktopMode, "Polygon Plot. Press Any Key to Close",
+    //                         sf::Style::Fullscreen);
+    sf::RenderWindow window(sf::VideoMode(max_coord, max_coord),
+                            "Polygon Plot. Press Any Key to Close");
 
     // Main loop
     VectSF_t points;
@@ -1140,15 +1230,18 @@ void drawPath(const Path_t& path, const Cities_t& stack)
             window.draw(marker);
         }
         for (const City& city : cities) {
-            sf::Text label;
-            label.setFont(font); // Set the font
-            label.setString(std::to_string(
-                city.id)); // Set the point's ID as the label text
-            label.setCharacterSize(14); // Set the character size
-            label.setFillColor(sf::Color::White); // Set the text color
-            label.setPosition(
-                city.x + 10, city.y - 10); // Position the label near the marker
-            window.draw(label); // Draw the label
+            if (show_coords) {
+                sf::Text label;
+                label.setFont(font); // Set the font
+                label.setString(std::to_string(
+                    city.id)); // Set the point's ID as the label text
+                label.setCharacterSize(14); // Set the character size
+                label.setFillColor(sf::Color::White); // Set the text color
+                label.setPosition(city.x + 10,
+                                  city.y -
+                                      10); // Position the label near the marker
+                window.draw(label); // Draw the label
+            }
 
             if (not city.on_stack)
                 continue;

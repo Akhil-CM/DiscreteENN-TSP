@@ -1,3 +1,4 @@
+// -*- C++ Header -*-
 #pragma once
 
 #include <iostream>
@@ -9,6 +10,9 @@
 namespace utils {
 
 using namespace std::string_literals;
+
+// Floating point precision helpers
+constexpr float tolerance = 1e-8;
 
 // Console write related helpers
 const std::string Line_Str = std::string{}.assign(30, '-');
