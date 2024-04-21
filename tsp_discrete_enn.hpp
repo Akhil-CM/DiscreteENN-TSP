@@ -10,9 +10,11 @@
 #include <algorithm>
 #include <numeric>
 #include <map>
+#include <unordered_map>
 #include <cmath>
 #include <tuple>
 #include <utility>
+#include <array>
 
 #include "utils.hpp"
 
@@ -309,7 +311,7 @@ void createStack(const Cities_t& cities, Cities_t& stack, int& layers)
     }
 }
 
-Value_t distance(const City& a, const City& b)
+Value_t getDistance(const City& a, const City& b)
 {
     const auto x_sqr = (a.x - b.x) * (a.x - b.x);
     const auto y_sqr = (a.y - b.y) * (a.y - b.y);
@@ -319,8 +321,8 @@ Value_t distance(const City& a, const City& b)
 Value_t insertionCost(const City& new_city, const City& cityA,
                       const City& cityB)
 {
-    return distance(new_city, cityA) + distance(new_city, cityB) -
-           distance(cityA, cityB);
+    return getDistance(new_city, cityA) + getDistance(new_city, cityB) -
+           getDistance(cityA, cityB);
 }
 
 double getArea(const City& a, const City& b, const City& c)
@@ -729,9 +731,9 @@ public:
             node_next->print();
             utils::printErr(
                 "Distances : " +
-                    std::to_string(distance(*node_curr, *node_next)) + ", " +
-                    std::to_string(distance(*node_curr, *node_prev)) + ", " +
-                    std::to_string(distance(*node_prev, *node_next)),
+                    std::to_string(getDistance(*node_curr, *node_next)) + ", " +
+                    std::to_string(getDistance(*node_curr, *node_prev)) + ", " +
+                    std::to_string(getDistance(*node_prev, *node_next)),
                 "updateCostNeighbour");
             return std::make_pair(index, true);
         }
@@ -763,9 +765,9 @@ public:
             node_next->print();
             utils::printErr(
                 "Distances : " +
-                    std::to_string(distance(*node_curr, *node_next)) + ", " +
-                    std::to_string(distance(*node_curr, *node_prev)) + ", " +
-                    std::to_string(distance(*node_prev, *node_next)),
+                    std::to_string(getDistance(*node_curr, *node_next)) + ", " +
+                    std::to_string(getDistance(*node_curr, *node_prev)) + ", " +
+                    std::to_string(getDistance(*node_prev, *node_next)),
                 "updateCostNeighbour");
             return std::make_pair(properIndex(index - 1), true);
         }
@@ -797,9 +799,9 @@ public:
             node_next->print();
             utils::printErr(
                 "Distances : " +
-                    std::to_string(distance(*node_curr, *node_next)) + ", " +
-                    std::to_string(distance(*node_curr, *node_prev)) + ", " +
-                    std::to_string(distance(*node_prev, *node_next)),
+                    std::to_string(getDistance(*node_curr, *node_next)) + ", " +
+                    std::to_string(getDistance(*node_curr, *node_prev)) + ", " +
+                    std::to_string(getDistance(*node_prev, *node_next)),
                 "updateCostNeighbour");
             return std::make_pair(properIndex(index + 1), true);
         }
@@ -934,7 +936,7 @@ public:
                (m_path.size() >= 3));
     }
 
-    bool run([[maybe_unused]] std::default_random_engine& gen)
+    bool run(std::default_random_engine& gen)
     {
         [[maybe_unused]] int iter_count{ 0 };
         [[maybe_unused]] const int num_cities = m_stack.size();
@@ -1257,4 +1259,51 @@ void drawPath(const Path_t& path, const Cities_t& stack, bool show_coords)
 
         window.display(); // Display what was drawn
     }
+}
+
+typedef std::unordered_map<std::string, std::array<Value_t, 4>> DistanceMap_t;
+bool readDistances(const std::string& filename, DistanceMap_t& distance_map)
+{
+    std::ifstream file{filename};
+    if (not file) {
+        utils::printErr("couldn't read file : " + filename, "readDistances");
+        return false;
+    }
+    distance_map.clear();
+    std::string line, word;
+    int line_count{ 0 }, line_num{ 0 };
+    std::string name;
+    while (std::getline(file, line)) {
+        if (line.empty())
+            continue;
+        std::stringstream line_stream{line};
+        if (not std::getline(line_stream, word, ',')) {
+            continue;;
+        }
+        utils::Str2Num index{word};
+        if (not std::getline(line_stream, word, ',')) {
+            continue;;
+        }
+        name = word;
+        if (not std::getline(line_stream, word, ',')) {
+            continue;;
+        }
+        utils::Str2Num distance{word};
+        if (not index.has_value() or not distance.has_value()) {
+            continue;;
+        }
+        ++line_count;
+        line_num = index.value();
+        distance_map[name] = DistanceMap_t::mapped_type{static_cast<float>(distance.value())};
+    }
+    utils::printInfo(
+        "Distance parsed from " + filename +
+            ".\nTotal number of cities : " + std::to_string(line_count),
+        "readDistances");
+    std::cout << std::endl;
+    assert(
+        "[Error] (readDistances): Number of distances parsed not equal to number of distances available" &&
+        (line_count == line_num));
+
+    return true;
 }
