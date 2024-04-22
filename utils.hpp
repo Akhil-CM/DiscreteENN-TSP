@@ -12,7 +12,7 @@ namespace utils {
 using namespace std::string_literals;
 
 // Floating point precision helpers
-constexpr float tolerance = 1e-8;
+constexpr float tolerance = 1e-4;
 
 // Console write related helpers
 const std::string Line_Str = std::string{}.assign(30, '-');
@@ -219,11 +219,12 @@ bool hasRepeatingPattern(const std::vector<T>& vect, int n)
         return false;
     }
 
-    const auto it_begin_last10 = vect.end() - n;
+    const auto it_begin_pattern = vect.end() - n;
     const auto it_end = vect.end();
+    const auto it_end_check = it_end - (2*n);
 
-    for (auto it = vect.begin(); it != it_end - 2 * n; ++it) {
-        if (std::equal(it_begin_last10, it_end, it)) {
+    for (auto it = vect.begin(); it != it_end_check; ++it) {
+        if (std::equal(it_begin_pattern, it_end, it)) {
             return true;
         }
     }
