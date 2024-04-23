@@ -62,7 +62,7 @@ inline void printInfo(const std::string& msg, const std::string& fname = "")
     std::string prefix{ "[Info]: " };
     std::cout << Line_Str << '\n';
     if (not fname.empty()) {
-        prefix = "[Info] (" + fname + "): ";
+        prefix = "\n[Info] (" + fname + "): ";
     }
     std::cout << prefix;
     std::cout << (split_newlines ? subtituteStr(msg, "\n", "\n" + prefix) : msg)
@@ -76,7 +76,7 @@ inline void printErr(const std::string& msg, const std::string& fname = "")
     std::string prefix{ "[Error]: " };
     std::cerr << Line_Str << '\n';
     if (not fname.empty()) {
-        prefix = "[Error] (" + fname + "): ";
+        prefix = "\n[Error] (" + fname + "): ";
     }
     std::cerr << prefix;
     std::cerr << (split_newlines ? subtituteStr(msg, "\n", prefix) : msg)
