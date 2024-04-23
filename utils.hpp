@@ -6,6 +6,7 @@
 #include <cassert>
 #include <optional>
 #include <vector>
+#include <algorithm>
 #include <filesystem>
 
 namespace utils {
@@ -262,4 +263,13 @@ bool vectContains(const T& item, const std::vector<T>& vect)
     return false;
 }
 
+template <typename T>
+int vectFind(const T& item, const std::vector<T>& vect)
+{
+    const auto& it_begin{ vect.begin() };
+    const auto& it_end{ vect.end() };
+    const auto& it =
+        std::find_if(it_begin, it_end, utils::MatchItem<T>{ item });
+    return (it == it_end) ? -1 : std::distance(it_begin, it);
+}
 }

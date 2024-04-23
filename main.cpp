@@ -22,11 +22,10 @@ const std::string& Data_Filename_berlin{ "berlin52.tsp" };
 
 int runPipelineSingle(const stdfs::path& data_path,
                       std::default_random_engine& rng, bool draw,
-                      bool show_coords, DistanceMap_t::mapped_type& distance);
+                      bool show_coords, TSPInfo& info);
 int runPipelineDir(const stdfs::path& data_path,
                    std::default_random_engine& rng, bool draw, bool show_coords,
-                   DistanceMap_t& distance_map,
-                   const DistanceMap_t& opt_distance_map);
+                   TSPInfoVect_t& infos, const TSPInfoVect_t& opt_infos);
 
 int main(int argc, char** argv)
 {
@@ -48,8 +47,8 @@ int main(int argc, char** argv)
     // -------------------------------------------
     // Read optimal distances
     // -------------------------------------------
-    DistanceMap_t optimal_distance_map;
-    if (not readDistances(Data_Optimal_Path.string(), optimal_distance_map)) {
+    TSPInfoVect_t optimal_infos;
+    if (not readDistances(Data_Optimal_Path.string(), optimal_infos)) {
         utils::printErr("Couldn't read optimal distances from " +
                             Data_Optimal_Path.string(),
                         "main");
@@ -82,15 +81,15 @@ int main(int argc, char** argv)
     }
 
     int runs_failed;
-    DistanceMap_t distance_map;
+    TSPInfoVect_t infos;
+    infos.reserve(optimal_infos.size());
     if (single_input) {
         stdfs::path Data_FilePath = Data_Path / stdfs::path(Data_Filename);
-        DistanceMap_t::mapped_type info{};
+        TSPInfo info{};
         runs_failed =
             runPipelineSingle(Data_FilePath, rng, draw_path, draw_coords, info);
         if (runs_failed == 0) {
-            const std::string& filename{ Data_FilePath.stem().string() };
-            distance_map[filename] = info;
+            infos.push_back(info);
         } else {
             utils::printErr("Single input pipeline failed for Data_FilePath: " +
                                 Data_FilePath.string(),
@@ -98,7 +97,7 @@ int main(int argc, char** argv)
         }
     } else {
         runs_failed = runPipelineDir(Data_Path, rng, draw_path, draw_coords,
-                                     distance_map, optimal_distance_map);
+                                     infos, optimal_infos);
     }
     if (runs_failed != 0) {
         utils::printErr("Runs failed: " + std::to_string(runs_failed) +
@@ -106,10 +105,11 @@ int main(int argc, char** argv)
                         "main");
         return EXIT_FAILURE;
     }
-    for (auto it{ distance_map.begin() }; it != distance_map.end(); ++it) {
-        const auto [name, info] = *it;
-        if (optimal_distance_map.count(name) == 0) {
-            utils::printErr("data name : " + name +
+    for (auto it{ infos.begin() }; it != infos.end(); ++it) {
+        TSPInfo& info{ *it };
+        int opt_info_pos{ utils::vectFind(info, optimal_infos) };
+        if (opt_info_pos == -1) {
+            utils::printErr("data name : " + info.m_name +
                                 " not found in optimal_distance_map",
                             "main");
             continue;
@@ -118,42 +118,46 @@ int main(int argc, char** argv)
         //     utils::printInfo("skipping file pr2392 because of long run time.", "runPipelineDir");
         //     continue;;
         // }
-        auto& optimal_info{ optimal_distance_map[name] };
-        const auto error =
-            std::abs(info[0] - optimal_info[0]) / optimal_info[0];
-        distance_map[name][2] = error;
+        TSPInfo& optimal_info{
+            optimal_infos[static_cast<std::size_t>(opt_info_pos)]
+        };
+        const auto error = std::abs(info.m_distance - optimal_info.m_distance) /
+                           optimal_info.m_distance;
+        info.m_error = error*100;
     }
     utils::printInfo("name\tdistance\tpoints\terror\ttime(ms)");
-    for (auto it{ optimal_distance_map.begin() };
-         it != optimal_distance_map.end(); ++it) {
-        const auto [name, discard] = *it;
-        const auto info{ distance_map[name] };
-        utils::printInfo(name + "\t" + std::to_string(info[0]) + "\t" +
-                         std::to_string(info[1]) + "\t" +
-                         std::to_string(info[2]) + "\t" +
-                         std::to_string(info[3]));
+    for (auto it{ optimal_infos.begin() }; it != optimal_infos.end(); ++it) {
+        TSPInfo& opt_info{ *it };
+        int info_pos{ utils::vectFind(opt_info, infos) };
+        TSPInfo& info{ infos[static_cast<std::size_t>(info_pos)] };
+        utils::printInfo(info.m_name + "\t" + std::to_string(info.m_distance) +
+                         "\t" + std::to_string(info.m_points) + "\t" +
+                         std::to_string(info.m_error) + "\t" +
+                         std::to_string(info.m_time));
     }
     std::ofstream table_file{ "DiscreteENN_TSP_table.txt" };
     table_file << "name\tdistance\tpoints\terror\ttime(ms)\n";
-    for (auto it{ optimal_distance_map.begin() };
-         it != optimal_distance_map.end(); ++it) {
-        const auto [name, discard] = *it;
-        const auto info{ distance_map[name] };
-        table_file << (name + "\t" + std::to_string(info[0]) + "\t" +
-                       std::to_string(info[1]) + "\t" +
-                       std::to_string(info[2]) + "\t" + std::to_string(info[3]))
+    for (auto it{ optimal_infos.begin() }; it != optimal_infos.end(); ++it) {
+        TSPInfo& opt_info{ *it };
+        int info_pos{ utils::vectFind(opt_info, infos) };
+        TSPInfo& info{ infos[static_cast<std::size_t>(info_pos)] };
+        table_file << (info.m_name + "\t" + std::to_string(info.m_distance) +
+                       "\t" + std::to_string(info.m_points) + "\t" +
+                       std::to_string(info.m_error) + "\t" +
+                       std::to_string(info.m_time))
                    << std::endl;
     }
     table_file.close();
     std::ofstream csv_file{ "DiscreteENN_TSP_table.csv" };
     csv_file << "name,distance,points,error,time(ms)\n";
-    for (auto it{ optimal_distance_map.begin() };
-         it != optimal_distance_map.end(); ++it) {
-        const auto [name, discard] = *it;
-        const auto info{ distance_map[name] };
-        csv_file << (name + "," + std::to_string(info[0]) + "," +
-                     std::to_string(info[1]) + "," + std::to_string(info[2]) +
-                     "," + std::to_string(info[3]))
+    for (auto it{ optimal_infos.begin() }; it != optimal_infos.end(); ++it) {
+        TSPInfo& opt_info{ *it };
+        int info_pos{ utils::vectFind(opt_info, infos) };
+        TSPInfo& info{ infos[static_cast<std::size_t>(info_pos)] };
+        csv_file << (info.m_name + "\t" + std::to_string(info.m_distance) +
+                     "\t" + std::to_string(info.m_points) + "\t" +
+                     std::to_string(info.m_error) + "\t" +
+                     std::to_string(info.m_time))
                  << std::endl;
     }
     csv_file.close();
@@ -163,8 +167,7 @@ int main(int argc, char** argv)
 
 int runPipelineDir(const stdfs::path& data_path,
                    std::default_random_engine& rng, bool draw, bool show_coords,
-                   DistanceMap_t& distance_map,
-                   const DistanceMap_t& opt_distance_map)
+                   TSPInfoVect_t& infos, const TSPInfoVect_t& opt_infos)
 {
     if (not stdfs::is_directory(data_path)) {
         utils::printErr("provided path " + data_path.string() +
@@ -172,7 +175,7 @@ int runPipelineDir(const stdfs::path& data_path,
                         "runPipelineDir");
         return 1;
     }
-    distance_map.clear();
+    infos.clear();
     int runs_failed{ 0 };
     for (const auto& entry : stdfs::directory_iterator(data_path)) {
         const auto filepath = entry.path();
@@ -181,8 +184,11 @@ int runPipelineDir(const stdfs::path& data_path,
                              "runPipelineDir");
             continue;
         }
+        TSPInfo info;
         const std::string& filename{ filepath.stem().string() };
-        if (opt_distance_map.count(filename) == 0) {
+        info.m_name = filename;
+        int opt_info_pos{ utils::vectFind(info, opt_infos) };
+        if (opt_info_pos == -1) {
             utils::printInfo("skipping file " + filepath.string() +
                                  " without optimal distance for TSP.",
                              "runPipelineDir");
@@ -192,14 +198,13 @@ int runPipelineDir(const stdfs::path& data_path,
         //     utils::printInfo("skipping file pr2392 because of long run time.", "runPipelineDir");
         //     continue;;
         // }
-        DistanceMap_t::mapped_type info{};
         if (runPipelineSingle(filepath, rng, draw, show_coords, info) != 0) {
             utils::printErr("pipeline failed for the path " + filepath.string(),
                             "runPipelineDir");
             ++runs_failed;
             continue;
         }
-        distance_map[filename] = info;
+        infos.push_back(info);
     }
 
     return runs_failed;
@@ -207,7 +212,7 @@ int runPipelineDir(const stdfs::path& data_path,
 
 int runPipelineSingle(const stdfs::path& data_path,
                       std::default_random_engine& rng, bool draw,
-                      bool show_coords, DistanceMap_t::mapped_type& info)
+                      bool show_coords, TSPInfo& info)
 {
     utils::printInfo("Running algorithm for " + data_path.string(),
                      "runPipelineSingle");
@@ -335,9 +340,11 @@ int runPipelineSingle(const stdfs::path& data_path,
             enn_tsp.properIndex(idx + 1)) };
         dist += getDistance(*path[idx], *path[idx_next]);
     }
-    info[0] = dist;
-    info[1] = num_cities;
-    info[3] = duration;
+    const std::string& filename{ data_path.stem().string() };
+    info.m_name = filename;
+    info.m_distance = dist;
+    info.m_points = num_cities;
+    info.m_time = duration;
     std::cout << "\n" + utils::Line_Str + "\n";
     std::cout << "[Info]: Total distance is : " << dist << '\n';
     std::cout << utils::Line_Str + "\n";

@@ -7,7 +7,6 @@
 #include <fstream>
 #include <sstream>
 #include <random>
-#include <algorithm>
 #include <numeric>
 #include <map>
 #include <unordered_map>
@@ -321,7 +320,7 @@ inline Value_t getDistance(const City& a, const City& b)
 }
 
 inline Value_t insertionCost(const City& new_city, const City& cityA,
-                      const City& cityB)
+                             const City& cityB)
 {
     return getDistance(new_city, cityA) + getDistance(new_city, cityB) -
            getDistance(cityA, cityB);
@@ -402,11 +401,7 @@ public:
 
     int findNode(Node_t node)
     {
-        const Path_t::const_iterator& it_begin{ m_path.begin() };
-        const Path_t::const_iterator& it_end{ m_path.end() };
-        const Path_t::const_iterator& it =
-            std::find_if(it_begin, it_end, utils::MatchItem<Node_t>{ node });
-        return (it == it_end) ? -1 : std::distance(it_begin, it);
+        return utils::vectFind(node, m_path);
     }
 
     void removeNode(int index)
@@ -1197,45 +1192,57 @@ void drawPath(const Path_t& path, const Cities_t& stack, bool show_coords)
     }
 }
 
-typedef std::unordered_map<std::string, std::array<Value_t, 4>> DistanceMap_t;
-bool readDistances(const std::string& filename, DistanceMap_t& distance_map)
+struct TSPInfo
+{
+    int m_points{ -1 };
+    Value_t m_distance{ VALUE_ONE_NEG };
+    Value_t m_error{ VALUE_ONE_NEG };
+    Value_t m_time{ VALUE_ONE_NEG };
+    Value_t m_timePerCity{ VALUE_ONE_NEG };
+    std::string m_name{ "" };
+};
+template <> inline bool utils::MatchItem<TSPInfo>::operator()(const TSPInfo& info)
+{
+    return (info.m_name == m_item.m_name);
+}
+typedef std::vector<TSPInfo> TSPInfoVect_t;
+
+bool readDistances(const std::string& filename, TSPInfoVect_t& infos)
 {
     std::ifstream file{ filename };
     if (not file) {
         utils::printErr("couldn't read file : " + filename, "readDistances");
         return false;
     }
-    distance_map.clear();
+    infos.clear();
     std::string line, word;
     int line_count{ 0 }, line_num{ 0 };
     std::string name;
+    TSPInfo info;
     while (std::getline(file, line)) {
         if (line.empty())
             continue;
         std::stringstream line_stream{ line };
         if (not std::getline(line_stream, word, ',')) {
             continue;
-            ;
         }
         utils::Str2Num index{ word };
         if (not std::getline(line_stream, word, ',')) {
             continue;
-            ;
         }
         name = word;
         if (not std::getline(line_stream, word, ',')) {
             continue;
-            ;
         }
         utils::Str2Num distance{ word };
         if (not index.has_value() or not distance.has_value()) {
             continue;
-            ;
         }
         ++line_count;
         line_num = index.value();
-        distance_map[name] =
-            DistanceMap_t::mapped_type{ static_cast<float>(distance.value()) };
+        info.m_name = name;
+        info.m_distance = static_cast<Value_t>(distance.value());
+        infos.push_back(info);
     }
     utils::printInfo(
         "Distance parsed from " + filename +
