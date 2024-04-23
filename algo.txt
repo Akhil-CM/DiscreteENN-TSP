@@ -1,0 +1,37 @@
+Paper:
+---------
+1. Looking for an edge r_i: h().....
+2. Create a new node vec( y ) that matches the city vec(x), and add it between nodes vec(y_i), vec(y_(i+1)).
+3. We check if criterion 1 is met. The traversed cities that do not satisfy this criterion are released (i.e., returned to the stack S of untraversed cities) and traversed again.
+
+When a node vec( y ) is added to the route, two new edges (vec(y_i), vec(y)) and (vec( y ), vec(y_(i+1)))) are added. The values of h(vec(y_i)) and h(vec(y_()i+1)) change, so to check if the criterion is fulfilled it is enough to check it for vec(y_i) and vec(y_(i+1)), and to compare h(vec(y_k)) with h(vec(y_k)); vec(y_i), vec(y)) and with h(vec(y_k); vec( y ), vec(y_(i+1)))) for the remaining nodes.
+When a node vec(y_k) is removed from the route, we need to check if the criterion is fulfilled given the new edge (vec(y_(k-1)), vec(y_(k+1))) and changed values of h(vec(y_(k-1))) and h(vec(y_(k+1)))).
+To ensure that there are no self-intersections in the route, it is sufficient, when adding a node vec( y ) between nodes vec(y_i), vec(y_(i+1)), to first remove all nodes from the route, lying inside the triangle (vec(y)), vec(y_i), vec(y_(i+1))), and when removing node vec(y_i), remove all nodes from the triangle (vec(y)), vec(y_(i-1)), vec(y_(i+1))).
+
+Implementation:
+--------------
+Let the city indices be:
+ci element of [0, num_cities)
+Let the node indices be:
+ni element of [0, num_nodes)
+
+1. Take a city on stack, x_ci
+2. Find nodes y_ni and y_(ni+1) which satisfies step (1) in paper.
+3. Remove city x_ci from stack
+4. Add new node at (ni+1) which is equal to x_ci and increase by value 1, the indies of node from original (ni+1) and higher. So, (ni+1), (ni+2), (ni+3)...(ni+N) becomes (ni+2), (ni+3), (ni+4)...(ni+N+1)
+5. Update cost values of y_ni, y_(ni+1) and y_(ni+2)
+
+6. Check whether y_ni and y_(ni+2) satisfy criterion 1
+7. Check whether all other nodes except y_(ni+1) satisfy criterion 1 by comparing with new edges {y_ni, y_(ni+1)} except node y_ni and {y_(ni+1), y_(ni+2)} except node y_(ni+2)
+*order invariant impl*
+8. Mark all nodes that don't satisfy the criteria for removal.
+9. For each node marked for removal construct new edges that will be formed after their removal.
+10. The neighbours have to be selected from the two adjacent nodes on the path (those ones not marked for removal) to the left and right of the current node marked for removal
+11. Update the node cost of neighbours, check if they satisfy criterion.
+12. Compare the node cost of other nodes with the newly formed edges
+(this is bad because any of the newly formed edge might invalidate the newly added node. So, all the nodes removed because of the addition of the newly added node doesn't make sense)
+*order non-invariant impl*
+8. For each node not satisfying the criterion 1, we remove it
+9. A new adge is created between its neighbours.
+10. Update the node cost of neighbours, check if they satisfy criterion.
+11. Compare the node cost of other nodes with the newly formed edges

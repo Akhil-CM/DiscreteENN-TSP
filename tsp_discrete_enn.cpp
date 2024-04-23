@@ -73,8 +73,8 @@ int main(int argc, char** argv)
     // -------------------------------------------
     DiscreteENN_TSP enn_tsp;
     enn_tsp.initialSize() = Num_Nodes_Initial;
-    enn_tsp.intersection() = Validation_Intersection;
-    enn_tsp.recursive() = Intersection_Recursive;
+    enn_tsp.validIntersectCK() = Validation_Intersection;
+    enn_tsp.rmIntersectRecurse() = Intersection_Recursive;
     enn_tsp.iterRandomize() = Iter_Randomize;
     enn_tsp.repeatLength() = Repeat_Check_Length;
 
