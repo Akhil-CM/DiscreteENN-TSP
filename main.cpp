@@ -2,7 +2,6 @@
 #include "tsp_discrete_enn.hpp"
 #include "utils.hpp"
 
-#include <filesystem>
 #include <chrono>
 
 namespace stdfs = std::filesystem;
@@ -13,23 +12,12 @@ using TimeUnit_t = TimeMilliS_t;
 using TimePoint_t = std::chrono::steady_clock::time_point;
 const std::string& time_unit{ "ms" };
 
-template <typename F,
-          typename std::enable_if<std::is_convertible_v<F, stdfs::path>>::type* =
-              nullptr>
-stdfs::path getCleanPath(const F& src)
-{
-    const stdfs::path tmp_src{ src };
-    const stdfs::path lexical_src{ tmp_src.lexically_normal() };
-    const stdfs::path abs_src{ stdfs::absolute(lexical_src) };
-    return stdfs::weakly_canonical(abs_src);
-}
-
 const std::string& Data_Optimal_Filename{ "./tsp_optimal_distances.csv" };
-const stdfs::path Data_Optimal_Path{ getCleanPath(
+const stdfs::path Data_Optimal_Path{ utils::getCleanPath(
     stdfs::current_path() / stdfs::path(Data_Optimal_Filename)) };
 
 const std::string& Data_Dir{ "Data/ALL_tsp" };
-stdfs::path Data_Path{ getCleanPath(stdfs::current_path() /
+stdfs::path Data_Path{ utils::getCleanPath(stdfs::current_path() /
                                           stdfs::path(Data_Dir)) };
 
 const std::string& Data_Filename_berlin{ "berlin52.tsp" };
@@ -90,7 +78,7 @@ int main(int argc, char** argv)
         }
     } else {
         if (not Data_Filename.empty()) {
-            Data_Path = getCleanPath(Data_Filename);
+            Data_Path = utils::getCleanPath(Data_Filename);
         }
         runs_failed = runPipelineDir(Data_Path, rng, draw_path, draw_coords, distance_map, optimal_distance_map);
     }
@@ -205,11 +193,6 @@ int runPipelineSingle(const stdfs::path&data_path, std::default_random_engine& r
     // Create and setup Discrete ENN Solver
     // -------------------------------------------
     DiscreteENN_TSP enn_tsp;
-    enn_tsp.initialSize() = Num_Nodes_Initial;
-    enn_tsp.validIntersectCK() = Validation_Intersection;
-    enn_tsp.rmIntersectRecurse() = Intersection_Recursive;
-    enn_tsp.iterRandomize() = Iter_Randomize;
-    enn_tsp.repeatLength() = Repeat_Check_Length;
 
     // -------------------------------------------
     // Construct Stack

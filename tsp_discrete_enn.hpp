@@ -31,6 +31,8 @@ using namespace std::string_literals;
 using utils::ErrorBool, utils::ErrorMsg;
 
 typedef float Value_t;
+constexpr Value_t VALUE_ZERO{ Value_t{ 0 } };
+constexpr Value_t VALUE_ONE_NEG{ Value_t{ -1 } };
 
 constexpr std::size_t Num_Nodes_Initial{ 3 };
 constexpr bool Validation_Intersection{ true };
@@ -74,12 +76,12 @@ typedef std::map<int, Cities_t> CityLayers_t;
 typedef std::optional<Node_t> NodeOpt_t;
 template <typename T> using NodeExp_t = utils::Expected<Node_t, T>;
 
-template <> bool utils::MatchItem<City>::operator()(const City& city)
+template <> inline bool utils::MatchItem<City>::operator()(const City& city)
 {
     return (city.id == m_item.id);
 }
 
-template <> bool utils::MatchItem<Node_t>::operator()(const Node_t& node)
+template <> inline bool utils::MatchItem<Node_t>::operator()(const Node_t& node)
 {
     return (node->id == m_item->id);
 }
@@ -127,9 +129,9 @@ class MinMaxCoords
 public:
     MinMaxCoords()
         : min_x{ std::numeric_limits<Value_t>::max() }
-        , max_x{ -1.0 }
+        , max_x{ VALUE_ONE_NEG }
         , min_y{ std::numeric_limits<Value_t>::max() }
-        , max_y{ -1.0 }
+        , max_y{ VALUE_ONE_NEG }
     {
     }
     MinMaxCoords(Value_t minx, Value_t maxx, Value_t miny, Value_t maxy)
@@ -160,9 +162,9 @@ public:
     void reset()
     {
         min_x = std::numeric_limits<Value_t>::max();
-        max_x = -1.0;
+        max_x = VALUE_ONE_NEG;
         min_y = std::numeric_limits<Value_t>::max();
-        max_y = -1.0;
+        max_y = VALUE_ONE_NEG;
     }
 
     void update(const Path_t& path)
@@ -311,39 +313,39 @@ void createStack(const Cities_t& cities, Cities_t& stack, int& layers)
     }
 }
 
-Value_t getDistance(const City& a, const City& b)
+inline Value_t getDistance(const City& a, const City& b)
 {
     const auto x_sqr = (a.x - b.x) * (a.x - b.x);
     const auto y_sqr = (a.y - b.y) * (a.y - b.y);
     return std::sqrt(x_sqr + y_sqr);
 }
 
-Value_t insertionCost(const City& new_city, const City& cityA,
+inline Value_t insertionCost(const City& new_city, const City& cityA,
                       const City& cityB)
 {
     return getDistance(new_city, cityA) + getDistance(new_city, cityB) -
            getDistance(cityA, cityB);
 }
 
-double getArea(const City& a, const City& b, const City& c)
+inline double getArea(const City& a, const City& b, const City& c)
 {
     return std::abs(a.x * (b.y - c.y) + b.x * (c.y - a.y) + c.x * (a.y - b.y)) /
            2.0;
 }
-bool isCollinearAndBetween(const City& c, const City& a, const City& b)
+inline bool isCollinearAndBetween(const City& c, const City& a, const City& b)
 {
     return std::min(a.x, b.x) <= c.x && c.x <= std::max(a.x, b.x) &&
            std::min(a.y, b.y) <= c.y && c.y <= std::max(a.y, b.y);
 }
 
-bool isCollinear(Node_t nodeA, Node_t nodeB, Node_t nodeC)
+inline bool isCollinear(Node_t nodeA, Node_t nodeB, Node_t nodeC)
 {
     const Value_t area_total = getArea(*nodeA, *nodeB, *nodeC);
 
-    return (std::abs(area_total) < utils::tolerance);
+    return utils::isEqual(area_total, VALUE_ZERO);
 }
 
-bool isInside(Node_t node, Node_t nodeA, Node_t nodeB, Node_t nodeC)
+inline bool isInside(Node_t node, Node_t nodeA, Node_t nodeB, Node_t nodeC)
 {
     const Value_t area_total = getArea(*nodeA, *nodeB, *nodeC);
 
@@ -351,18 +353,17 @@ bool isInside(Node_t node, Node_t nodeA, Node_t nodeB, Node_t nodeC)
     const Value_t area2 = getArea(*node, *nodeB, *nodeC);
     const Value_t area3 = getArea(*node, *nodeC, *nodeA);
 
-    if (std::abs(area1) < utils::tolerance) {
+    if (utils::isEqual(area1, VALUE_ZERO)) {
         return isCollinearAndBetween(*node, *nodeA, *nodeB);
     }
-    if (std::abs(area2) < utils::tolerance) {
+    if (utils::isEqual(area2, VALUE_ZERO)) {
         return isCollinearAndBetween(*node, *nodeB, *nodeC);
     }
-    if (std::abs(area3) < utils::tolerance) {
+    if (utils::isEqual(area3, VALUE_ZERO)) {
         return isCollinearAndBetween(*node, *nodeC, *nodeA);
     }
 
-    const Value_t area_diff = std::abs(area_total - (area1 + area2 + area3));
-    return (area_diff < utils::tolerance);
+    return utils::isEqual(area_total, (area1 + area2 + area3));
 }
 
 class DiscreteENN_TSP
@@ -463,7 +464,7 @@ public:
             return std::make_pair(false, true);
         }
         const Value_t cost_current{ node->cost };
-        if (cost_current < utils::tolerance) {
+        if (utils::isEqual(cost_current, VALUE_ZERO)) {
             return std::make_pair(true, false);
         }
         if (index != 0 and index != static_cast<int>(num_nodes - 1)) {
@@ -519,7 +520,7 @@ public:
             node_next{ m_path[idx_next] };
         const Value_t cost =
             isCollinear(node_curr, node_prev, node_next) ?
-                Value_t{ 0.0 } :
+                VALUE_ZERO :
                 insertionCost(*node_curr, *node_prev, *node_next);
         node_curr->cost = cost;
     }
@@ -529,7 +530,7 @@ public:
         const int num_nodes = m_path.size();
         if (num_nodes < 3) {
             utils::printErr("given path size less than 3", "nodeCost");
-            return Value_t{ -1.0 };
+            return VALUE_ONE_NEG;
         }
         const int index = findNode(node);
         if (index == -1) {
@@ -537,7 +538,7 @@ public:
                 "Request to calculate cost for a node not present in path. Current path size " +
                     std::to_string(m_path.size()),
                 "nodeCost");
-            return Value_t{ -1.0 };
+            return VALUE_ONE_NEG;
         }
         updateCost(static_cast<std::size_t>(index));
         return true;
@@ -1000,12 +1001,12 @@ public:
     }
 
 private:
-    bool m_rmIntersectRecurse;
-    bool m_validIntersectCK;
+    bool m_rmIntersectRecurse{ Intersection_Recursive };
+    bool m_validIntersectCK{ Validation_Intersection };
     bool m_fromScratch{ false };
-    int m_initialSize;
-    int m_iterRandomize;
-    int m_repeatLen;
+    int m_initialSize{ Num_Nodes_Initial };
+    int m_iterRandomize{ Iter_Randomize };
+    int m_repeatLen{ Repeat_Check_Length };
     std::string m_pattern;
     std::vector<std::size_t> m_patternSizes;
     Cities_t m_stack;

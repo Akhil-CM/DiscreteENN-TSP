@@ -6,13 +6,20 @@
 #include <cassert>
 #include <optional>
 #include <vector>
+#include <filesystem>
 
 namespace utils {
+
+namespace stdfs = std::filesystem;
 
 using namespace std::string_literals;
 
 // Floating point precision helpers
-constexpr float tolerance = 1e-4;
+constexpr float epsilonf = 1e-4;
+inline bool isEqual(float a, float b)
+{
+    return std::abs(a - b) < epsilonf;
+}
 
 // Console write related helpers
 const std::string Line_Str = std::string{}.assign(30, '-');
@@ -76,6 +83,18 @@ inline void printErr(const std::string& msg, const std::string& fname = "")
               << '\n';
     std::cerr << Line_Str << '\n';
 }
+
+template <typename F,
+          typename std::enable_if<std::is_convertible_v<F, stdfs::path>>::type* =
+              nullptr>
+stdfs::path getCleanPath(const F& src)
+{
+    const stdfs::path tmp_src{ src };
+    const stdfs::path lexical_src{ tmp_src.lexically_normal() };
+    const stdfs::path abs_src{ stdfs::absolute(lexical_src) };
+    return stdfs::weakly_canonical(abs_src);
+}
+
 
 // "Expected" type helpers
 template <typename T, typename E> class Expected
