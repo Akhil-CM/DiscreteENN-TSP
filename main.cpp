@@ -48,7 +48,7 @@ int main(int argc, char** argv)
 
     const bool single_input{ utils::vectContains(std::string{ "--single" },
                                                  args) };
-    const bool draw_path{ not utils::vectContains(std::string{ "--batch" },
+    const bool draw_path{ utils::vectContains(std::string{ "--draw" },
                                                   args) };
     const bool draw_coords{ utils::vectContains(std::string{ "--show-coords" },
                                                 args) };
@@ -117,9 +117,13 @@ int main(int argc, char** argv)
         };
         const auto error = std::abs(info.m_distance - optimal_info.m_distance) /
                            optimal_info.m_distance;
-        info.m_error = error*100;
+        info.m_error = utils::getRound2(error*100);
+        info.m_distance = utils::getRound2(info.m_distance);
+        optimal_info.m_distance = utils::getRound2(optimal_info.m_distance);
     }
-    utils::printInfo("name\tpoints\terror\ttime(" + time_unit + ")\ttime per city(" + time_unit + ")\ttime per city min(" + time_unit + ")\ttime per city max(" + time_unit + ")\tdistance\toptimal_distance\n");
+    // const std::string& table_header{ "name\tpoints\terror\ttime(" + time_unit + ")\ttime per city(" + time_unit + ")\ttime per city min(" + time_unit + ")\ttime per city max(" + time_unit + ")\tdistance\toptimal_distance" };
+    const std::string& table_header{ "name\tpoints\terror\ttime(" + time_unit + ")\ttime per city(" + time_unit + ")\tdistance\toptimal_distance" };
+    utils::printInfo(table_header);
     for (auto it{ optimal_infos.begin() }; it != optimal_infos.end(); ++it) {
         TSPInfo& opt_info{ *it };
         int info_pos{ utils::vectFind(opt_info, infos) };
@@ -135,13 +139,13 @@ int main(int argc, char** argv)
                          std::to_string(info.m_error) + "\t" +
                          std::to_string(info.m_time) + "\t" +
                          std::to_string(info.m_timePerCity) + "\t" +
-                         std::to_string(info.m_timePerCityMin) + "\t" +
-                         std::to_string(info.m_timePerCityMax) + "\t" +
+                         // std::to_string(info.m_timePerCityMin) + "\t" +
+                         // std::to_string(info.m_timePerCityMax) + "\t" +
                          std::to_string(info.m_distance) + "\t" +
                          std::to_string(opt_info.m_distance));
     }
     std::ofstream table_file{ "DiscreteENN_TSP_table.txt" };
-    table_file << "name\tpoints\terror\ttime(" + time_unit + ")\ttime per city(" + time_unit + ")\ttime per city min(" + time_unit + ")\ttime per city max(" + time_unit + ")\tdistance\toptimal_distance\n";
+    table_file << table_header << std::endl;
     for (auto it{ optimal_infos.begin() }; it != optimal_infos.end(); ++it) {
         TSPInfo& opt_info{ *it };
         int info_pos{ utils::vectFind(opt_info, infos) };
@@ -157,15 +161,15 @@ int main(int argc, char** argv)
                          std::to_string(info.m_error) + "\t" +
                          std::to_string(info.m_time) + "\t" +
                          std::to_string(info.m_timePerCity) + "\t" +
-                         std::to_string(info.m_timePerCityMin) + "\t" +
-                         std::to_string(info.m_timePerCityMax) + "\t" +
+                         // std::to_string(info.m_timePerCityMin) + "\t" +
+                         // std::to_string(info.m_timePerCityMax) + "\t" +
                          std::to_string(info.m_distance) + "\t" +
                          std::to_string(opt_info.m_distance))
                    << std::endl;
     }
     table_file.close();
     std::ofstream csv_file{ "DiscreteENN_TSP_table.csv" };
-    csv_file << "name,points,error,time(" + time_unit + "),time per city(" + time_unit + "),time per city min(" + time_unit + "),time per city max(" + time_unit + "),distance,optimal_distance\n";
+    csv_file << table_header << std::endl;
     for (auto it{ optimal_infos.begin() }; it != optimal_infos.end(); ++it) {
         TSPInfo& opt_info{ *it };
         int info_pos{ utils::vectFind(opt_info, infos) };
@@ -181,8 +185,8 @@ int main(int argc, char** argv)
                          std::to_string(info.m_error) + "," +
                          std::to_string(info.m_time) + "," +
                          std::to_string(info.m_timePerCity) + "," +
-                         std::to_string(info.m_timePerCityMin) + "," +
-                         std::to_string(info.m_timePerCityMax) + "," +
+                         // std::to_string(info.m_timePerCityMin) + "," +
+                         // std::to_string(info.m_timePerCityMax) + "," +
                          std::to_string(info.m_distance) + "," +
                          std::to_string(opt_info.m_distance))
                  << std::endl;
@@ -385,10 +389,10 @@ int runPipelineSingle(TSPInfo& info, const stdfs::path& data_path,
     info.m_name = filename;
     info.m_distance = dist;
     info.m_points = num_cities;
-    info.m_time = duration;
-    info.m_timePerCity = static_cast<Value_t>(duration)/num_cities;
+    info.m_time = utils::getRound2(duration);
+    info.m_timePerCity = utils::getRound2(static_cast<Value_t>(duration)/num_cities);
     // info.m_timePerIter = enn_tsp.timePerCity();
-    std::tie(info.m_timePerCityMin, info.m_timePerCityMax) = enn_tsp.timePerCityMinMax();
+    // std::tie(info.m_timePerCityMin, info.m_timePerCityMax) = enn_tsp.timePerCityMinMax();
     std::cout << "\n" + utils::Line_Str + "\n";
     std::cout << "[Info]: Total distance is : " << dist << '\n';
     std::cout << utils::Line_Str + "\n";

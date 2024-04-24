@@ -1,2 +1,2 @@
-name	points	error	time(us)	time per city(us)	time per city min(us)	time per city max(us)	distance	optimal_distance
-pr1002	1002	6.932652	5975245.000000	5963.318359	340282346638528859811704183484516925440.000000	-1.000000	277003.687500	259045.000000
+name	points	error	time(us)	time per city(us)	distance	optimal_distance
+tsp225	225	7.540000	64888.000000	288.390015	4211.290039	3916.000000

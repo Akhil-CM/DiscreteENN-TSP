@@ -4,6 +4,7 @@
 #include <iostream>
 #include <string>
 #include <cassert>
+#include <cmath>
 #include <optional>
 #include <vector>
 #include <algorithm>
@@ -20,6 +21,20 @@ constexpr float epsilonf = 1e-4;
 inline bool isEqual(float a, float b)
 {
     return std::abs(a - b) < epsilonf;
+}
+
+inline float getRound2(float value)
+{
+    const float round1{ std::round(value * 1000.f) };
+    const float round2{ std::round(round1/10.f) };
+    return (round2/100.f);
+}
+
+inline float getRoundN(float value, int places)
+{
+    const float round1 = std::round(value * std::pow(10.f, places+1));
+    const float round2{ std::round(round1/10.f) };
+    return (round2/std::pow(10.f, places));
 }
 
 // Console write related helpers

@@ -8,6 +8,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+set(CMAKE_C_COMPILER "clang")
+set(CMAKE_CXX_COMPILER "clang++")
+
 # # we default to Release build type
 # if(NOT CMAKE_BUILD_TYPE)
 #     set(CMAKE_BUILD_TYPE "Debug")
@@ -24,7 +27,7 @@ include_directories( "${PROJECT_SOURCE_DIR}/include" )
 # add_library(utilities OBJECT "${PROJECT_SOURCE_DIR}/src/utilities.cxx")
 
 # add the executable
-add_executable(enn_tsp "${PROJECT_SOURCE_DIR}/main.cpp")
+add_executable(enn_tsp "${PROJECT_SOURCE_DIR}/main.cpp" "${PROJECT_SOURCE_DIR}/tsp_discrete_enn.hpp" "${PROJECT_SOURCE_DIR}/utils.hpp")
 
 # Set compiler options for different build types
 target_compile_options(enn_tsp PRIVATE

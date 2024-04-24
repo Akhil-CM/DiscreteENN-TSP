@@ -2,7 +2,7 @@
 
 # while "$@"; do :; done
 count=0
-while "$@"; do
+while "$@" &> /dev/null; do
     echo "-------------------------------------------"
     echo "[Info]: Run #${count} currently in progress"
     echo "-------------------------------------------"

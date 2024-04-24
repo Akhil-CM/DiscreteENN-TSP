@@ -6,3 +6,4 @@
 /bin
 compile_commands.json
 perf.*
+CMakeLists.txt.*
