@@ -279,7 +279,7 @@ auto createCityLayers(const Cities_t& cities, CityLayers_t& city_layers,
 
 void createStack(const Cities_t& cities, Cities_t& stack, int& layers)
 {
-    const int num_cities = cities.size();
+    const std::size_t num_cities = cities.size();
     stack.reserve(static_cast<std::size_t>(num_cities));
     CityLayers_t city_layers;
     MinMaxCoords minmax_coords;
@@ -290,7 +290,7 @@ void createStack(const Cities_t& cities, Cities_t& stack, int& layers)
     max_x = max_y = max_coord;
     const auto [cities_added, depth] =
         createCityLayers(cities, city_layers, minmax_coords, 1);
-    if (cities_added != num_cities) {
+    if (static_cast<std::size_t>(cities_added) != num_cities) {
         const std::string& error_msg{ "number of cities in city_layers (" +
                                       std::to_string(cities_added) +
                                       ") doesn't match cities size (" +
@@ -314,7 +314,7 @@ void createStack(const Cities_t& cities, Cities_t& stack, int& layers)
         }
     }
 
-    const int stack_size = stack.size();
+    const std::size_t stack_size = stack.size();
     if (stack_size != num_cities) {
         const std::string& error_msg{ "stack size (" +
                                       std::to_string(stack_size) +
@@ -1253,10 +1253,10 @@ void drawPath(const Path_t& path, const Cities_t& stack, bool show_coords)
     points.reserve(path.size());
     path2SFVector(path, points);
     // fitPointsInWindow(points, {static_cast<unsigned int>(max_coord), static_cast<unsigned int>(max_coord)}, minmax_coords, 20);
-    fitPointsInWindow(points, window.getSize(), minmax_coords, 100);
+    fitPointsInWindow(points, window.getSize(), minmax_coords, 50);
     Cities_t cities = stack;
     // fitPointsInWindow(cities, {static_cast<unsigned int>(max_coord), static_cast<unsigned int>(max_coord)}, minmax_coords, 20);
-    fitPointsInWindow(cities, window.getSize(), minmax_coords, 100);
+    fitPointsInWindow(cities, window.getSize(), minmax_coords, 50);
     sf::ConvexShape polygon;
     polygon.setPointCount(points.size());
     for (size_t i = 0; i < points.size(); ++i) {
