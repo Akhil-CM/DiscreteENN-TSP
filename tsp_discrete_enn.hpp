@@ -1236,20 +1236,11 @@ void fitPointsInWindow(VectSF_t& points, const sf::Vector2u& window_size,
     // Calculate scale factors for x and y to fit the plot within the window, considering margins
     Value_t scaleX = (window_size.x - 2 * margin) / width;
     Value_t scaleY = (window_size.y - 2 * margin) / height;
-    Value_t scale = std::min(
-        scaleX,
-        scaleY); // Use the smaller scale factor to maintain aspect ratio
-
-    // Calculate translation to center the path
-    Value_t centerX = min_x + width / 2.0f;
-    Value_t centerY = min_x + height / 2.0f;
-    Value_t newCenterX = window_size.x / 2.0f;
-    Value_t newCenterY = window_size.y / 2.0f;
 
     // Apply scale and translation to the points
     for (auto& point : points) {
-        point.x = (point.x - centerX) * scale + newCenterX;
-        point.y = (point.y - centerY) * scale + newCenterY;
+        point.x = (point.x - min_x) * scaleX + margin;
+        point.y = (point.y - min_y) * scaleY + margin;
     }
 }
 
@@ -1266,20 +1257,11 @@ void fitPointsInWindow(Cities_t& cities, const sf::Vector2u& window_size,
     // Calculate scale factors for x and y to fit the plot within the window, considering margins
     Value_t scaleX = (window_size.x - 2 * margin) / width;
     Value_t scaleY = (window_size.y - 2 * margin) / height;
-    Value_t scale = std::min(
-        scaleX,
-        scaleY); // Use the smaller scale factor to maintain aspect ratio
-
-    // Calculate translation to center the path
-    Value_t centerX = min_x + width / 2.0f;
-    Value_t centerY = min_x + height / 2.0f;
-    Value_t newCenterX = window_size.x / 2.0f;
-    Value_t newCenterY = window_size.y / 2.0f;
 
     // Apply scale and translation to the points
     for (auto& city : cities) {
-        city.x = (city.x - centerX) * scale + newCenterX;
-        city.y = (city.y - centerY) * scale + newCenterY;
+        city.x = (city.x - min_x) * scaleX + margin;
+        city.y = (city.y - min_y) * scaleY + margin;
     }
 }
 
