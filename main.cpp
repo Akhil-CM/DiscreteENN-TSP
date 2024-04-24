@@ -129,6 +129,12 @@ int main(int argc, char** argv)
     for (auto it{ optimal_infos.begin() }; it != optimal_infos.end(); ++it) {
         TSPInfo& opt_info{ *it };
         int info_pos{ utils::vectFind(opt_info, infos) };
+        if (info_pos == -1) {
+            // utils::printInfo("skipping file " + opt_info.m_name +
+            //                      " for which algorithm was not run.",
+            //                  "main");
+            continue;
+        }
         TSPInfo& info{ infos[static_cast<std::size_t>(info_pos)] };
         utils::printInfo(info.m_name + "\t" + std::to_string(info.m_distance) +
                          "\t" + std::to_string(info.m_points) + "\t" +
@@ -140,6 +146,12 @@ int main(int argc, char** argv)
     for (auto it{ optimal_infos.begin() }; it != optimal_infos.end(); ++it) {
         TSPInfo& opt_info{ *it };
         int info_pos{ utils::vectFind(opt_info, infos) };
+        if (info_pos == -1) {
+            // utils::printInfo("skipping file " + opt_info.m_name +
+            //                      " for which algorithm was not run.",
+            //                  "main");
+            continue;
+        }
         TSPInfo& info{ infos[static_cast<std::size_t>(info_pos)] };
         table_file << (info.m_name + "\t" + std::to_string(info.m_distance) +
                        "\t" + std::to_string(info.m_points) + "\t" +
@@ -153,10 +165,16 @@ int main(int argc, char** argv)
     for (auto it{ optimal_infos.begin() }; it != optimal_infos.end(); ++it) {
         TSPInfo& opt_info{ *it };
         int info_pos{ utils::vectFind(opt_info, infos) };
+        if (info_pos == -1) {
+            // utils::printInfo("skipping file " + opt_info.m_name +
+            //                      " for which algorithm was not run.",
+            //                  "main");
+            continue;
+        }
         TSPInfo& info{ infos[static_cast<std::size_t>(info_pos)] };
-        csv_file << (info.m_name + "\t" + std::to_string(info.m_distance) +
-                     "\t" + std::to_string(info.m_points) + "\t" +
-                     std::to_string(info.m_error) + "\t" +
+        csv_file << (info.m_name + "," + std::to_string(info.m_distance) +
+                     "," + std::to_string(info.m_points) + "," +
+                     std::to_string(info.m_error) + "," +
                      std::to_string(info.m_time))
                  << std::endl;
     }
@@ -309,8 +327,8 @@ int runPipelineSingle(const stdfs::path& data_path,
     assert("[Error] (main): path size not equal to number of cities" &&
            (enn_tsp.path().size() == static_cast<std::size_t>(num_cities)));
 
-    const std::size_t num_nodes = enn_tsp.path().size();
     Path_t& path = enn_tsp.path();
+    const std::size_t num_nodes = path.size();
     for (std::size_t idx{ 0 }; idx != num_nodes; ++idx) {
         const auto [valid, err] = enn_tsp.validateNode(path[idx]);
         if (err) {
@@ -322,10 +340,23 @@ int runPipelineSingle(const stdfs::path& data_path,
     NodeExp_t<bool> erased = enn_tsp.validatePath();
     if (erased.err()) {
         std::cerr << "[Error] (main): final validatePath failed\n";
+        if (draw) {
+            drawPath(path, enn_tsp.stack(), show_coords);
+        }
         return 1;
     }
     if (erased.has_value()) {
         std::cerr << "[Error] (main): final validatePath removed node(s)\n";
+        if (draw) {
+            drawPath(path, enn_tsp.stack(), show_coords);
+        }
+        return 1;
+    }
+    if (enn_tsp.checkIntersectPath()) {
+        std::cerr << "[Error] (main): final checkIntersectPath failed\n";
+        if (draw) {
+            drawPath(path, enn_tsp.stack(), show_coords);
+        }
         return 1;
     }
 

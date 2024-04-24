@@ -157,6 +157,17 @@ private:
 template <typename T> using ErrorMsg = Expected<T, std::string>;
 template <typename T> using ErrorBool = Expected<T, bool>;
 
+inline std::string trimLeft(const std::string& text)
+{
+    if (text.empty()) {
+        return text;
+    }
+    std::string::size_type pos = text.find_first_not_of(" \n\r\t\f\v");
+    if (pos == std::string::npos) {
+        return "";
+    }
+    return text.substr(pos);
+}
 inline std::string trimRight(const std::string& text)
 {
     if (text.empty()) {
@@ -172,8 +183,9 @@ inline std::string trimRight(const std::string& text)
 inline bool isNumber(const std::string& str)
 {
     if (str.empty()) return false;
+    const std::string& number_str{ trimRight(str) };
     char* p;
-    std::strtod(trimRight(str).c_str(), &p);
+    std::strtod(number_str.c_str(), &p);
     return (*p == '\0');
 }
 
@@ -187,7 +199,8 @@ public:
             m_state = false;
         } else {
             char* p;
-            m_val = std::strtod(trimRight(str).c_str(), &p);
+            const std::string& number_str{ trimRight(str) };
+            m_val = std::strtod(number_str.c_str(), &p);
             m_state = (*p == '\0');
         }
     }

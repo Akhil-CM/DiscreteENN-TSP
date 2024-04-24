@@ -9,6 +9,7 @@
 #include <random>
 #include <numeric>
 #include <map>
+#include <string>
 #include <unordered_map>
 #include <cmath>
 #include <tuple>
@@ -96,12 +97,25 @@ void parseCities(Cities_t& cities, const std::string& filename)
         exit(EXIT_FAILURE);
     }
     std::string line;
-    int line_count{ 0 }, line_num{ 0 };
+    int line_count{ 0 }, line_expected{ -1 }, line_num;
     Value_t x, y;
-    bool start_parse{ false };
+    bool start_parse;
     while (std::getline(in_file, line)) {
-        if (line.empty())
+        if (line.empty()) {
             continue;
+        }
+        if (line == "DIMENSION") {
+            std::string::size_type pos = line.find_first_of(":");
+            if (pos != std::string::npos) {
+                std::string word{ line.substr(pos + 1) };
+                utils::Str2Num number{ word };
+                if (number.has_value()) {
+                    line_expected = number.value();
+                }
+            }
+            continue;
+        }
+        line = utils::trimLeft(line);
         std::string word{ line.substr(
             0, line.find_first_of(utils::Whitespace_Str)) };
         start_parse = utils::isNumber(word);
@@ -118,9 +132,9 @@ void parseCities(Cities_t& cities, const std::string& filename)
             ".\nTotal number of cities : " + std::to_string(line_count),
         "parseCities");
     std::cout << std::endl;
-    assert(
-        "[Error] (parseCities): Number of coords parsed not equal to number of coords available" &&
-        (line_count == line_num));
+    if ((line_expected != -1) and (line_count != line_expected)) {
+        utils::printErr("Number of coords parsed " + std::to_string(line_count) + " not equal to number of coords available " + std::to_string(line_expected), "parseCities");
+    }
 }
 
 class MinMaxCoords
@@ -331,7 +345,7 @@ inline double getArea(const City& a, const City& b, const City& c)
     return std::abs(a.x * (b.y - c.y) + b.x * (c.y - a.y) + c.x * (a.y - b.y)) /
            2.0;
 }
-inline bool isCollinearAndBetween(const City& c, const City& a, const City& b)
+inline bool isBetween(const City& c, const City& a, const City& b)
 {
     return std::min(a.x, b.x) <= c.x && c.x <= std::max(a.x, b.x) &&
            std::min(a.y, b.y) <= c.y && c.y <= std::max(a.y, b.y);
@@ -353,16 +367,57 @@ inline bool isInside(Node_t node, Node_t nodeA, Node_t nodeB, Node_t nodeC)
     const Value_t area3 = getArea(*node, *nodeC, *nodeA);
 
     if (utils::isEqual(area1, VALUE_ZERO)) {
-        return isCollinearAndBetween(*node, *nodeA, *nodeB);
+        return isBetween(*node, *nodeA, *nodeB);
     }
     if (utils::isEqual(area2, VALUE_ZERO)) {
-        return isCollinearAndBetween(*node, *nodeB, *nodeC);
+        return isBetween(*node, *nodeB, *nodeC);
     }
     if (utils::isEqual(area3, VALUE_ZERO)) {
-        return isCollinearAndBetween(*node, *nodeC, *nodeA);
+        return isBetween(*node, *nodeC, *nodeA);
     }
 
     return utils::isEqual(area_total, (area1 + area2 + area3));
+}
+
+// 0 --> collinear
+// 1 --> Clockwise
+// 2 --> Counterclockwise
+inline int getOrientation(const City& a, const City& b, const City& c)
+{
+    Value_t val = (b.y - a.y) * (c.x - b.x) - (b.x - a.x) * (c.y - b.y);
+
+    if (utils::isEqual(val, VALUE_ZERO))
+        return 0;
+
+    return (val > 0) ? 1 : 2;
+}
+
+inline bool hasIntersection(Node_t nodeA1, Node_t nodeA2, Node_t nodeB1,
+                            Node_t nodeB2)
+{
+    int o1 = getOrientation(*nodeA1, *nodeA2, *nodeB1);
+    int o2 = getOrientation(*nodeA1, *nodeA2, *nodeB2);
+    int o3 = getOrientation(*nodeB1, *nodeB2, *nodeA1);
+    int o4 = getOrientation(*nodeB1, *nodeB2, *nodeA2);
+
+    // General case
+    if (o1 != o2 && o3 != o4)
+        return true;
+
+    // Special Cases
+    if (o1 == 0 && isBetween(*nodeB1, *nodeA1, *nodeA2))
+        return true;
+
+    if (o2 == 0 && isBetween(*nodeB2, *nodeA1, *nodeA2))
+        return true;
+
+    if (o3 == 0 && isBetween(*nodeA1, *nodeB1, *nodeB2))
+        return true;
+
+    if (o4 == 0 && isBetween(*nodeA2, *nodeB1, *nodeB2))
+        return true;
+
+    return false; // Doesn't fall in any of the above cases
 }
 
 class DiscreteENN_TSP
@@ -813,6 +868,78 @@ public:
         return NodeExp_t<bool>{ node_erased, false };
     }
 
+    int checkIntersectEdge(std::size_t start, std::size_t end)
+    {
+        const Node_t node_start{ m_path[start] };
+        const Node_t node_end{ m_path[end] };
+        const std::size_t num_nodes{ m_path.size() };
+        if (start != (num_nodes - 1) or end != 0) {
+            if (not(start == 0 or end == (num_nodes - 1))) {
+                if (hasIntersection(node_start, node_end, m_path[num_nodes - 1],
+                                    m_path[0])) {
+                    return (num_nodes - 1);
+                }
+            }
+        }
+        for (std::size_t idx{ 0 }; idx != (num_nodes - 1); ++idx) {
+            if (start != idx or end != (idx + 1)) {
+                if (not(start == (idx + 1) or end == idx)) {
+                    if (hasIntersection(node_start, node_end, m_path[idx],
+                                        m_path[idx + 1])) {
+                        return idx;
+                    }
+                }
+            }
+        }
+        return -1;
+    }
+
+    bool checkIntersectPath()
+    {
+        const std::size_t num_nodes{ m_path.size() };
+        int intersect0{ checkIntersectEdge(num_nodes - 1, 0) };
+        if (intersect0 != -1) {
+            const std::size_t intersect_next{ properIndex(intersect0 + 1) };
+            utils::printErr("Found an intersection for edge (0, " +
+                                std::to_string(num_nodes - 1) + ") and edge (" +
+                                std::to_string(intersect0) + ", " +
+                                std::to_string(intersect_next) +
+                                ")",
+                            "checkIntersectPath");
+            utils::printErr("node 0");
+            m_path[0]->print();
+            utils::printErr("node last");
+            (m_path.back())->print();
+            utils::printErr("node " + std::to_string(intersect0));
+            m_path[static_cast<std::size_t>(intersect0)]->print();
+            utils::printErr("node " + std::to_string(intersect_next));
+            m_path[intersect_next]->print();
+            return true;
+        }
+        for (std::size_t idx{ 0 }; idx != (num_nodes - 1); ++idx) {
+            int intersect{ checkIntersectEdge(idx, idx + 1) };
+            if (intersect != -1) {
+                const std::size_t intersect_next{ properIndex(intersect + 1) };
+                utils::printErr("Found an intersection for edge (" + std::to_string(idx) + ", " +
+                                    std::to_string(idx + 1) + ") and edge (" +
+                                    std::to_string(intersect) + ", " +
+                                    std::to_string(intersect_next) +
+                                    ")",
+                                "checkIntersectPath");
+                utils::printErr("node " + std::to_string(idx));
+                m_path[idx]->print();
+                utils::printErr("node " + std::to_string(idx + 1));
+                m_path[idx + 1]->print();
+                utils::printErr("node " + std::to_string(intersect));
+                m_path[static_cast<std::size_t>(intersect)]->print();
+                utils::printErr("node " + std::to_string(intersect_next));
+                m_path[intersect_next]->print();
+                return true;
+            }
+        }
+        return false;
+    }
+
     void initializePath()
     {
         const std::size_t num_cities = m_stack.size();
@@ -1040,7 +1167,7 @@ void path2SFVector(const Path_t& path, VectSF_t& vect_sf)
     }
 }
 
-void fitPointsInWindow(VectSF_t& points, const sf::Vector2u& windowSize,
+void fitPointsInWindow(VectSF_t& points, const sf::Vector2u& window_size,
                        const MinMaxCoords& minmax_coords, Value_t margin)
 {
     if (points.empty())
@@ -1048,25 +1175,29 @@ void fitPointsInWindow(VectSF_t& points, const sf::Vector2u& windowSize,
 
     const auto [min_x, max_x, min_y, max_y] = minmax_coords.value();
 
+    Value_t width{ max_x - min_x };
+    Value_t height{ max_y - min_y };
     // Calculate scale factors for x and y to fit the plot within the window, considering margins
-    Value_t scaleX = (windowSize.x - 2 * margin) / (max_x - min_x);
-    Value_t scaleY = (windowSize.y - 2 * margin) / (max_y - min_y);
+    Value_t scaleX = (window_size.x - 2 * margin) / width;
+    Value_t scaleY = (window_size.y - 2 * margin) / height;
     Value_t scale = std::min(
         scaleX,
         scaleY); // Use the smaller scale factor to maintain aspect ratio
 
-    // Calculate translation to center the plot
-    Value_t translateX = (windowSize.x - (max_x + min_x) * scale) / 2.0f;
-    Value_t translateY = (windowSize.y - (max_y + min_y) * scale) / 2.0f;
+    // Calculate translation to center the path
+    Value_t centerX = min_x + width / 2.0f;
+    Value_t centerY = min_x + height / 2.0f;
+    Value_t newCenterX = window_size.x / 2.0f;
+    Value_t newCenterY = window_size.y / 2.0f;
 
     // Apply scale and translation to the points
     for (auto& point : points) {
-        point.x = (point.x - min_x) * scale + margin + translateX;
-        point.y = (point.y - min_y) * scale + margin + translateY;
+        point.x = (point.x - centerX) * scale + newCenterX;
+        point.y = (point.y - centerY) * scale + newCenterY;
     }
 }
 
-void fitPointsInWindow(Cities_t& cities, const sf::Vector2u& windowSize,
+void fitPointsInWindow(Cities_t& cities, const sf::Vector2u& window_size,
                        const MinMaxCoords& minmax_coords, Value_t margin)
 {
     if (cities.empty())
@@ -1074,21 +1205,25 @@ void fitPointsInWindow(Cities_t& cities, const sf::Vector2u& windowSize,
 
     const auto [min_x, max_x, min_y, max_y] = minmax_coords.value();
 
+    Value_t width{ max_x - min_x };
+    Value_t height{ max_y - min_y };
     // Calculate scale factors for x and y to fit the plot within the window, considering margins
-    Value_t scaleX = (windowSize.x - 2 * margin) / (max_x - min_x);
-    Value_t scaleY = (windowSize.y - 2 * margin) / (max_y - min_y);
+    Value_t scaleX = (window_size.x - 2 * margin) / width;
+    Value_t scaleY = (window_size.y - 2 * margin) / height;
     Value_t scale = std::min(
         scaleX,
         scaleY); // Use the smaller scale factor to maintain aspect ratio
 
-    // Calculate translation to center the plot
-    Value_t translateX = (windowSize.x - (max_x + min_x) * scale) / 2.0f;
-    Value_t translateY = (windowSize.y - (max_y + min_y) * scale) / 2.0f;
+    // Calculate translation to center the path
+    Value_t centerX = min_x + width / 2.0f;
+    Value_t centerY = min_x + height / 2.0f;
+    Value_t newCenterX = window_size.x / 2.0f;
+    Value_t newCenterY = window_size.y / 2.0f;
 
     // Apply scale and translation to the points
     for (auto& city : cities) {
-        city.x = (city.x - min_x) * scale + margin + translateX;
-        city.y = (city.y - min_y) * scale + margin + translateY;
+        city.x = (city.x - centerX) * scale + newCenterX;
+        city.y = (city.y - centerY) * scale + newCenterY;
     }
 }
 
@@ -1100,26 +1235,28 @@ void drawPath(const Path_t& path, const Cities_t& stack, bool show_coords)
     // Create a full-screen window using the current desktop resolution
     MinMaxCoords minmax_coords;
     minmax_coords.update(stack);
-    const auto [min_coord, max_coord] = minmax_coords.minmax();
+    [[maybe_unused]] const auto [min_coord, max_coord] = minmax_coords.minmax();
     // sf::RenderWindow window(sf::VideoMode(minmax_coords.max_x,
     //                                       minmax_coords.max_y),
-    //                         "Polygon Plot. Press Any Key to Close");
+    //                         "TSP Route. Press Any Key to Close");
     // sf::RenderWindow window(
     // sf::VideoMode(minmax_coords.max_x, minmax_coords.max_y),
-    // "Polygon Plot. Press Any Key to Close", sf::Style::Fullscreen);
-    // sf::RenderWindow window(sf::VideoMode(800, 600), "Polygon Plot. Press Any Key to Close", sf::Style::Fullscreen);
-    // sf::RenderWindow window(desktopMode, "Polygon Plot. Press Any Key to Close",
-    //                         sf::Style::Fullscreen);
-    sf::RenderWindow window(sf::VideoMode(max_coord, max_coord),
-                            "Polygon Plot. Press Any Key to Close");
+    // "TSP Route. Press Any Key to Close", sf::Style::Fullscreen);
+    // sf::RenderWindow window(sf::VideoMode(800, 600), "TSP Route. Press Any Key to Close", sf::Style::Fullscreen);
+    sf::RenderWindow window(desktopMode, "TSP Route. Press Any Key to Close",
+                            sf::Style::Fullscreen);
+    // sf::RenderWindow window(sf::VideoMode(max_coord + 50, max_coord + 50),
+    //                         "TSP Route. Press Any Key to Close");
 
     // Main loop
     VectSF_t points;
     points.reserve(path.size());
     path2SFVector(path, points);
-    fitPointsInWindow(points, window.getSize(), minmax_coords, 20);
+    // fitPointsInWindow(points, {static_cast<unsigned int>(max_coord), static_cast<unsigned int>(max_coord)}, minmax_coords, 20);
+    fitPointsInWindow(points, window.getSize(), minmax_coords, 100);
     Cities_t cities = stack;
-    fitPointsInWindow(cities, window.getSize(), minmax_coords, 20);
+    // fitPointsInWindow(cities, {static_cast<unsigned int>(max_coord), static_cast<unsigned int>(max_coord)}, minmax_coords, 20);
+    fitPointsInWindow(cities, window.getSize(), minmax_coords, 100);
     sf::ConvexShape polygon;
     polygon.setPointCount(points.size());
     for (size_t i = 0; i < points.size(); ++i) {
@@ -1201,7 +1338,8 @@ struct TSPInfo
     Value_t m_timePerCity{ VALUE_ONE_NEG };
     std::string m_name{ "" };
 };
-template <> inline bool utils::MatchItem<TSPInfo>::operator()(const TSPInfo& info)
+template <>
+inline bool utils::MatchItem<TSPInfo>::operator()(const TSPInfo& info)
 {
     return (info.m_name == m_item.m_name);
 }
@@ -1216,12 +1354,13 @@ bool readDistances(const std::string& filename, TSPInfoVect_t& infos)
     }
     infos.clear();
     std::string line, word;
-    int line_count{ 0 }, line_num{ 0 };
+    int line_count{ 0 };
     std::string name;
     TSPInfo info;
     while (std::getline(file, line)) {
-        if (line.empty())
+        if (line.empty()) {
             continue;
+        }
         std::stringstream line_stream{ line };
         if (not std::getline(line_stream, word, ',')) {
             continue;
@@ -1239,7 +1378,6 @@ bool readDistances(const std::string& filename, TSPInfoVect_t& infos)
             continue;
         }
         ++line_count;
-        line_num = index.value();
         info.m_name = name;
         info.m_distance = static_cast<Value_t>(distance.value());
         infos.push_back(info);
@@ -1249,9 +1387,6 @@ bool readDistances(const std::string& filename, TSPInfoVect_t& infos)
             ".\nTotal number of cities : " + std::to_string(line_count),
         "readDistances");
     std::cout << std::endl;
-    assert(
-        "[Error] (readDistances): Number of distances parsed not equal to number of distances available" &&
-        (line_count == line_num));
 
     return true;
 }
