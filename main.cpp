@@ -20,12 +20,11 @@ const std::string& Data_Dir{ "Data/ALL_tsp" };
 
 const std::string& Data_Filename_berlin{ "berlin52.tsp" };
 
-int runPipelineSingle(const stdfs::path& data_path,
-                      std::default_random_engine& rng, bool draw,
-                      bool show_coords, TSPInfo& info);
-int runPipelineDir(const stdfs::path& data_path,
-                   std::default_random_engine& rng, bool draw, bool show_coords,
-                   TSPInfoVect_t& infos, const TSPInfoVect_t& opt_infos);
+int runPipelineSingle(TSPInfo& info, const stdfs::path& data_path,
+                      std::default_random_engine& rng, bool draw, bool draw_failed,
+                      bool show_coords);
+int runPipelineDir(TSPInfoVect_t& infos, const TSPInfoVect_t& opt_infos, const stdfs::path& data_path,
+                   std::default_random_engine& rng, bool draw, bool draw_failed, bool show_coords);
 
 int main(int argc, char** argv)
 {
@@ -61,6 +60,8 @@ int main(int argc, char** argv)
                                                   args) };
     const bool draw_coords{ utils::vectContains(std::string{ "--show-coords" },
                                                 args) };
+    const bool draw_failed{ utils::vectContains(std::string{ "--draw-failed" },
+                                                args) };
 
     std::string Data_Filename{ Data_Filename_berlin };
     stdfs::path Data_Path{ utils::getCleanPath(stdfs::current_path() /
@@ -87,7 +88,7 @@ int main(int argc, char** argv)
         stdfs::path Data_FilePath = Data_Path / stdfs::path(Data_Filename);
         TSPInfo info{};
         runs_failed =
-            runPipelineSingle(Data_FilePath, rng, draw_path, draw_coords, info);
+            runPipelineSingle(info, Data_FilePath, rng, draw_path, draw_failed, draw_coords);
         if (runs_failed == 0) {
             infos.push_back(info);
         } else {
@@ -96,8 +97,7 @@ int main(int argc, char** argv)
                             "main");
         }
     } else {
-        runs_failed = runPipelineDir(Data_Path, rng, draw_path, draw_coords,
-                                     infos, optimal_infos);
+        runs_failed = runPipelineDir(infos, optimal_infos, Data_Path, rng, draw_path, draw_failed, draw_coords);
     }
     if (runs_failed != 0) {
         utils::printErr("Runs failed: " + std::to_string(runs_failed) +
@@ -183,9 +183,8 @@ int main(int argc, char** argv)
     return 0;
 }
 
-int runPipelineDir(const stdfs::path& data_path,
-                   std::default_random_engine& rng, bool draw, bool show_coords,
-                   TSPInfoVect_t& infos, const TSPInfoVect_t& opt_infos)
+int runPipelineDir(TSPInfoVect_t& infos, const TSPInfoVect_t& opt_infos, const stdfs::path& data_path,
+                   std::default_random_engine& rng, bool draw, bool draw_failed, bool show_coords)
 {
     if (not stdfs::is_directory(data_path)) {
         utils::printErr("provided path " + data_path.string() +
@@ -216,7 +215,7 @@ int runPipelineDir(const stdfs::path& data_path,
         //     utils::printInfo("skipping file pr2392 because of long run time.", "runPipelineDir");
         //     continue;;
         // }
-        if (runPipelineSingle(filepath, rng, draw, show_coords, info) != 0) {
+        if (runPipelineSingle(info, filepath, rng, draw, draw_failed, show_coords) != 0) {
             utils::printErr("pipeline failed for the path " + filepath.string(),
                             "runPipelineDir");
             ++runs_failed;
@@ -228,9 +227,9 @@ int runPipelineDir(const stdfs::path& data_path,
     return runs_failed;
 }
 
-int runPipelineSingle(const stdfs::path& data_path,
-                      std::default_random_engine& rng, bool draw,
-                      bool show_coords, TSPInfo& info)
+int runPipelineSingle(TSPInfo& info, const stdfs::path& data_path,
+                      std::default_random_engine& rng, bool draw, bool draw_failed,
+                      bool show_coords)
 {
     utils::printInfo("Running algorithm for " + data_path.string(),
                      "runPipelineSingle");
@@ -340,21 +339,21 @@ int runPipelineSingle(const stdfs::path& data_path,
     NodeExp_t<bool> erased = enn_tsp.validatePath();
     if (erased.err()) {
         std::cerr << "[Error] (main): final validatePath failed\n";
-        if (draw) {
+        if (draw_failed) {
             drawPath(path, enn_tsp.stack(), show_coords);
         }
         return 1;
     }
     if (erased.has_value()) {
         std::cerr << "[Error] (main): final validatePath removed node(s)\n";
-        if (draw) {
+        if (draw_failed) {
             drawPath(path, enn_tsp.stack(), show_coords);
         }
         return 1;
     }
     if (enn_tsp.checkIntersectPath()) {
         std::cerr << "[Error] (main): final checkIntersectPath failed\n";
-        if (draw) {
+        if (draw_failed) {
             drawPath(path, enn_tsp.stack(), show_coords);
         }
         return 1;

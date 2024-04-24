@@ -1,2 +1,1 @@
 name	distance	points	error	time(ms)
-tsp225	4114.717285	225	5.074497	17.000000
