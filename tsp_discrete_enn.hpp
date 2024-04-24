@@ -10,7 +10,7 @@
 #include <numeric>
 #include <map>
 #include <string>
-#include <unordered_map>
+#include <unordered_set>
 #include <cmath>
 #include <tuple>
 #include <utility>
@@ -133,7 +133,11 @@ void parseCities(Cities_t& cities, const std::string& filename)
         "parseCities");
     std::cout << std::endl;
     if ((line_expected != -1) and (line_count != line_expected)) {
-        utils::printErr("Number of coords parsed " + std::to_string(line_count) + " not equal to number of coords available " + std::to_string(line_expected), "parseCities");
+        utils::printErr("Number of coords parsed " +
+                            std::to_string(line_count) +
+                            " not equal to number of coords available " +
+                            std::to_string(line_expected),
+                        "parseCities");
     }
 }
 
@@ -461,12 +465,12 @@ public:
 
     void removeNode(int index)
     {
-        // const std::string& node_idx_str{
-        //     "|" + std::to_string(m_path[static_cast<std::size_t>(index)]->id) +
-        //     "|"
-        // };
-        // std::string::size_type idx_erase = m_pattern.find(node_idx_str);
-        // m_pattern.erase(idx_erase, node_idx_str.length());
+        const std::string& node_idx_str{
+            "|" + std::to_string(m_path[static_cast<std::size_t>(index)]->id) +
+            "|"
+        };
+        std::string::size_type idx_erase = m_pattern.find(node_idx_str);
+        m_pattern.erase(idx_erase, node_idx_str.length());
 
         const Path_t::iterator node_iter{ m_path.begin() + index };
         (*node_iter)->on_stack = true;
@@ -487,14 +491,14 @@ public:
 
     void addNode(int index, Node_t node)
     {
-        // const std::string& node_idx_str{
-        //     "|" + std::to_string(m_path[static_cast<std::size_t>(index)]->id) +
-        //     "|"
-        // };
-        // const std::string& node_idx_added_str{ "|" + std::to_string(node->id) +
-        //                                        "|" };
-        // std::string::size_type idx_insert = m_pattern.find(node_idx_str);
-        // m_pattern.insert(idx_insert, node_idx_added_str);
+        const std::string& node_idx_str{
+            "|" + std::to_string(m_path[static_cast<std::size_t>(index)]->id) +
+            "|"
+        };
+        const std::string& node_idx_added_str{ "|" + std::to_string(node->id) +
+                                               "|" };
+        std::string::size_type idx_insert = m_pattern.find(node_idx_str);
+        m_pattern.insert(idx_insert, node_idx_added_str);
 
         node->on_stack = false;
         m_path.insert(m_path.begin() + index, node);
@@ -868,6 +872,10 @@ public:
         return NodeExp_t<bool>{ node_erased, false };
     }
 
+    bool sameCoords(const City& cityA, const City& cityB)
+    {
+        return std::make_pair(cityA.x, cityA.y) == std::make_pair(cityB.x, cityB.y);
+    }
     int checkIntersectEdge(std::size_t start, std::size_t end)
     {
         const Node_t node_start{ m_path[start] };
@@ -877,7 +885,21 @@ public:
             if (not(start == 0 or end == (num_nodes - 1))) {
                 if (hasIntersection(node_start, node_end, m_path[num_nodes - 1],
                                     m_path[0])) {
-                    return (num_nodes - 1);
+                    if (utils::isEqual(getDistance(*node_end,
+                                                   *m_path[num_nodes - 1]),
+                                       VALUE_ZERO) or
+                        utils::isEqual(getDistance(*node_end, *m_path[0]),
+                                       VALUE_ZERO) or
+                        utils::isEqual(getDistance(*node_start,
+                                                   *m_path[num_nodes - 1]),
+                                       VALUE_ZERO) or
+                        utils::isEqual(getDistance(*node_start, *m_path[0]),
+                                       VALUE_ZERO)) {
+                        ;
+                    } else {
+                        return (num_nodes - 1);
+                    }
+                    // return (num_nodes - 1);
                 }
             }
         }
@@ -886,7 +908,22 @@ public:
                 if (not(start == (idx + 1) or end == idx)) {
                     if (hasIntersection(node_start, node_end, m_path[idx],
                                         m_path[idx + 1])) {
-                        return idx;
+                        if (utils::isEqual(getDistance(*node_end, *m_path[idx]),
+                                           VALUE_ZERO) or
+                            utils::isEqual(getDistance(*node_end,
+                                                       *m_path[idx + 1]),
+                                           VALUE_ZERO) or
+                            utils::isEqual(getDistance(*node_start,
+                                                       *m_path[idx]),
+                                           VALUE_ZERO) or
+                            utils::isEqual(getDistance(*node_start,
+                                                       *m_path[idx + 1]),
+                                           VALUE_ZERO)) {
+                        ;
+                        } else {
+                            return idx;
+                        }
+                        // return idx;
                     }
                 }
             }
@@ -903,8 +940,7 @@ public:
             utils::printErr("Found an intersection for edge (0, " +
                                 std::to_string(num_nodes - 1) + ") and edge (" +
                                 std::to_string(intersect0) + ", " +
-                                std::to_string(intersect_next) +
-                                ")",
+                                std::to_string(intersect_next) + ")",
                             "checkIntersectPath");
             utils::printErr("node 0");
             m_path[0]->print();
@@ -920,11 +956,11 @@ public:
             int intersect{ checkIntersectEdge(idx, idx + 1) };
             if (intersect != -1) {
                 const std::size_t intersect_next{ properIndex(intersect + 1) };
-                utils::printErr("Found an intersection for edge (" + std::to_string(idx) + ", " +
+                utils::printErr("Found an intersection for edge (" +
+                                    std::to_string(idx) + ", " +
                                     std::to_string(idx + 1) + ") and edge (" +
                                     std::to_string(intersect) + ", " +
-                                    std::to_string(intersect_next) +
-                                    ")",
+                                    std::to_string(intersect_next) + ")",
                                 "checkIntersectPath");
                 utils::printErr("node " + std::to_string(idx));
                 m_path[idx]->print();
@@ -967,6 +1003,7 @@ public:
             Node_t it{ it_begin + idx };
             it->on_stack = false;
             m_path.push_back(it);
+            m_pattern += "|" + std::to_string(it->id) + "|";
         }
         updateCostAll();
         assert("[Error] (constructPath): constructed path size less than 3" &&
@@ -975,13 +1012,13 @@ public:
 
     bool run(std::default_random_engine& gen)
     {
+        typedef std::uniform_int_distribution<int> distrib_t;
         [[maybe_unused]] const int num_cities = m_stack.size();
-        std::uniform_int_distribution<int> distrib(0, num_cities - 1);
+        distrib_t distrib(0, num_cities - 1);
         const Node_t& it_begin{ m_stack.begin() };
         const Node_t& it_end{ m_stack.end() };
-        [[maybe_unused]] std::size_t repeat_check{ 0 };
-        std::vector<int> indices_added(
-            static_cast<std::size_t>(m_iterRandomize));
+        std::unordered_set<utils::hash_type> pattern_hashes;
+        [[maybe_unused]] bool flip = false;
         for (Node_t it{ it_begin }; it != it_end;) {
             if (not it->on_stack) {
                 ++it;
@@ -1018,8 +1055,6 @@ public:
                                     "run");
                     return false;
                 }
-                indices_added[repeat_check] = idx_added;
-                ++repeat_check;
 
                 const utils::Expected nodes = getNeigbhours(it);
                 if (nodes.err()) {
@@ -1061,42 +1096,35 @@ public:
                     }
                 }
 
-                if (repeat_check >= static_cast<std::size_t>(m_iterRandomize)) {
-                    // utils::printInfo("Many indices added : " +
-                    //                      std::to_string(indices_added.size()),
-                    //                  "run");
-                    repeat_check = 0;
-                    const bool repeating{ utils::hasRepeatingPattern(
-                        indices_added, m_repeatLen) };
-                    if (repeating) {
-                        utils::printInfo(
-                            "Found repeating pattern. Randomize input node",
-                            "run");
-                        utils::printInfo("Path progress " +
-                                             std::to_string(m_path.size()) +
-                                             "/" + std::to_string(num_cities),
-                                         "run");
-                        utils::printInfo("Repeating pattern:", "run");
-                        const auto idx_it_end{ indices_added.end() };
-                        for (auto idx_it{ idx_it_end - m_repeatLen };
-                             idx_it != idx_it_end; ++idx_it) {
-                            std::cout << *idx_it << ",";
-                        }
-                        std::cout << std::endl;
-                        const int idx_rand{ distrib(gen) };
-                        utils::printInfo("New starting point " +
-                                             std::to_string(idx_rand),
-                                         "run");
-                        it = it_begin + idx_rand;
-                        continue;
-#if (TSP_DEBUG_PRINT > 0)
-                        std::cout << ("\n[Debug] (run): drawPath started\n");
-#endif
-                        // drawPath(path, stack, true);
-#if (TSP_DEBUG_PRINT > 0)
-                        std::cout << ("[Debug] (run): drawPath ended\n");
-#endif
+                if (not pattern_hashes.insert(utils::getHash(m_pattern)).second) {
+                    utils::printInfo(
+                        "Found repeating pattern. Randomize input node", "run");
+                    utils::printInfo("Path progress " +
+                                         std::to_string(m_path.size()) + "/" +
+                                         std::to_string(num_cities),
+                                     "run");
+                    std::cout << std::endl;
+                    if (flip) {
+                        distrib.param(
+                            distrib_t::param_type(0, m_path.size() - 1));
+                    } else {
+                        distrib.param(distrib_t::param_type(m_path.size() - 1,
+                                                            num_cities - 1));
                     }
+                    flip = not flip;
+                    const int idx_rand{ distrib(gen) };
+                    utils::printInfo("New starting point " +
+                                         std::to_string(idx_rand),
+                                     "run");
+                    it = it_begin + idx_rand;
+                    continue;
+#if (TSP_DEBUG_PRINT > 0)
+                    std::cout << ("\n[Debug] (run): drawPath started\n");
+#endif
+                    // drawPath(path, stack, true);
+#if (TSP_DEBUG_PRINT > 0)
+                    std::cout << ("[Debug] (run): drawPath ended\n");
+#endif
                 }
             }
 

@@ -96,7 +96,6 @@ stdfs::path getCleanPath(const F& src)
     return stdfs::weakly_canonical(abs_src);
 }
 
-
 // "Expected" type helpers
 template <typename T, typename E> class Expected
 {
@@ -182,7 +181,8 @@ inline std::string trimRight(const std::string& text)
 
 inline bool isNumber(const std::string& str)
 {
-    if (str.empty()) return false;
+    if (str.empty())
+        return false;
     const std::string& number_str{ trimRight(str) };
     char* p;
     std::strtod(number_str.c_str(), &p);
@@ -254,7 +254,7 @@ bool hasRepeatingPattern(const std::vector<T>& vect, int n)
 
     const auto it_begin_pattern = vect.end() - n;
     const auto it_end = vect.end();
-    const auto it_end_check = it_end - (2*n);
+    const auto it_end_check = it_end - (2 * n);
 
     for (auto it = vect.begin(); it != it_end_check; ++it) {
         if (std::equal(it_begin_pattern, it_end, it)) {
@@ -276,8 +276,7 @@ bool vectContains(const T& item, const std::vector<T>& vect)
     return false;
 }
 
-template <typename T>
-int vectFind(const T& item, const std::vector<T>& vect)
+template <typename T> int vectFind(const T& item, const std::vector<T>& vect)
 {
     const auto& it_begin{ vect.begin() };
     const auto& it_end{ vect.end() };
@@ -285,4 +284,40 @@ int vectFind(const T& item, const std::vector<T>& vect)
         std::find_if(it_begin, it_end, utils::MatchItem<T>{ item });
     return (it == it_end) ? -1 : std::distance(it_begin, it);
 }
+
+typedef std::uint32_t hash_type;
+
+inline std::uint32_t calcCRC32(const std::string& str)
+{
+    const unsigned char *pData{ reinterpret_cast<const unsigned char*>(str.c_str()) };
+    std::size_t ulByteCount{ str.length() };
+    std::uint32_t d, ind;
+    std::uint32_t acc = 0xFFFFFFFF;
+    const std::uint32_t ulCrcRand32Lut[] =
+    {
+        0x00000000, 0x1DB71064, 0x3B6E20C8, 0x26D930AC,
+        0x76DC4190, 0x6B6B51F4, 0x4DB26158, 0x5005713C,
+        0xEDB88320, 0xF00F9344, 0xD6D6A3E8, 0xCB61B38C,
+        0x9B64C2B0, 0x86D3D2D4, 0xA00AE278, 0xBDBDF21C
+    };
+
+    while ( ulByteCount > 0 )
+    {
+        ulByteCount--;
+        d = *pData++;
+        ind = (acc & 0x0F) ^ (d & 0x0F);
+        acc = (acc >> 4) ^ ulCrcRand32Lut[ind];
+        ind = (acc & 0x0F) ^ (d >> 4);
+        acc = (acc >> 4) ^ ulCrcRand32Lut[ind];
+    }
+
+    return (acc ^ 0xFFFFFFFF);
 }
+
+inline hash_type getHash(const std::string& str)
+{
+    return calcCRC32(str);
+    // return std::hash<std::string>{}(str);
+}
+
+} // namespace utils
