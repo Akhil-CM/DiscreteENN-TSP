@@ -3,8 +3,8 @@ import matplotlib.pyplot as plt
 # List of pairs of coordinates, where each pair is a line segment
 # Each element is ((x1, y1), (x2, y2))
 line_segments = [
-    ((80.000000, 41.000000), (80.000000, 25.000000)),
-    ((80.000000, 25.000000), (72.000000, 25.000000)),
+    ((6850.000000, 11700.000000), (6665.000000, 11710.000000)),
+    ((6665.000000, 11860.000000), (6775.000000, 11650.000000)),
 ]
 
 # Create a plot

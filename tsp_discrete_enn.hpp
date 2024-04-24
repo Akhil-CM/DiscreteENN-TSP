@@ -15,6 +15,7 @@
 #include <tuple>
 #include <utility>
 #include <array>
+#include <chrono>
 
 #include "utils.hpp"
 
@@ -26,6 +27,13 @@
 
 #define TSP_DEBUG_PRINT 0
 #define TSP_DEBUG_CHECK 0
+
+using TimeMilliS_t = std::chrono::milliseconds;
+using TimeMicroS_t = std::chrono::microseconds;
+// using TimeUnit_t = TimeMilliS_t;
+using TimeUnit_t = TimeMicroS_t;
+using TimePoint_t = std::chrono::steady_clock::time_point;
+const std::string& time_unit{ "us" };
 
 using namespace std::string_literals;
 using utils::ErrorBool, utils::ErrorMsg;
@@ -456,6 +464,14 @@ public:
     int& repeatLength()
     {
         return m_repeatLen;
+    }
+    Value_t timePerCity()
+    {
+        return m_timePerIter/m_iterNum;
+    }
+    auto timePerCityMinMax()
+    {
+        return std::make_pair(m_timePerIterMin, m_timePerIterMax);
     }
 
     int findNode(Node_t node)
@@ -1036,6 +1052,7 @@ public:
                     }
                     continue;
                 }
+                // TimePoint_t start_time = std::chrono::steady_clock::now();
                 const int idx_added = findBestInsertion(it);
                 if (idx_added == -1) {
                     utils::printErr("findBestInsertion failed at index " +
@@ -1080,21 +1097,22 @@ public:
                     continue;
                 }
 
-                // if (it_erased1.has_value() or it_erased2.has_value()) {
-                //     it = it_begin;
+                if (it_erased1.has_value() or it_erased2.has_value()) {
+                    const int idx_rand{ distrib(gen) };
+                    it = it_begin + idx_rand;
+                }
+                // if (it_erased1.has_value()) {
+                //     it = *it_erased1;
                 // }
-                if (it_erased1.has_value()) {
-                    it = *it_erased1;
-                }
-                if (it_erased2.has_value()) {
-                    if (it_erased1.has_value()) {
-                        it = (*it_erased1)->id < (it_erased2.value())->id ?
-                                 *it_erased1 :
-                                 it_erased2.value();
-                    } else {
-                        it = it_erased2.value();
-                    }
-                }
+                // if (it_erased2.has_value()) {
+                //     if (it_erased1.has_value()) {
+                //         it = (*it_erased1)->id < (it_erased2.value())->id ?
+                //                  *it_erased1 :
+                //                  it_erased2.value();
+                //     } else {
+                //         it = it_erased2.value();
+                //     }
+                // }
 
                 if (not pattern_hashes.insert(utils::getHash(m_pattern)).second) {
                     utils::printInfo(
@@ -1126,6 +1144,13 @@ public:
                     std::cout << ("[Debug] (run): drawPath ended\n");
 #endif
                 }
+                // TimePoint_t end_time = std::chrono::steady_clock::now();
+                // auto delta = std::chrono::duration_cast<TimeUnit_t>(end_time - start_time);
+                // const Value_t duration = delta.count();
+                // m_timePerIter += duration;
+                // m_timePerIterMin = std::min(duration, m_timePerIterMin);
+                // m_timePerIterMax = std::max(duration, m_timePerIterMax);
+                // ++m_iterNum;
             }
 
             // #if (TSP_DEBUG_PRINT > 0)
@@ -1157,8 +1182,11 @@ private:
     int m_initialSize{ Num_Nodes_Initial };
     int m_iterRandomize{ Iter_Randomize };
     int m_repeatLen{ Repeat_Check_Length };
+    int m_iterNum{0};
+    Value_t m_timePerIter{VALUE_ZERO};
+    Value_t m_timePerIterMin{ std::numeric_limits<Value_t>::max() };
+    Value_t m_timePerIterMax{ VALUE_ONE_NEG };
     std::string m_pattern;
-    std::vector<std::size_t> m_patternSizes;
     Cities_t m_stack;
     Path_t m_path;
 };
@@ -1363,7 +1391,10 @@ struct TSPInfo
     Value_t m_distance{ VALUE_ONE_NEG };
     Value_t m_error{ VALUE_ONE_NEG };
     Value_t m_time{ VALUE_ONE_NEG };
+    Value_t m_timePerIter{ VALUE_ONE_NEG };
     Value_t m_timePerCity{ VALUE_ONE_NEG };
+    Value_t m_timePerCityMin{ VALUE_ONE_NEG };
+    Value_t m_timePerCityMax{ VALUE_ONE_NEG };
     std::string m_name{ "" };
 };
 template <>
