@@ -1,26 +1,17 @@
 #!/usr/bin/env bash
 
-# COMPILER="clang++"
-COMPILER="g++"
-
-CXX_STANDARD="-std=c++17"
-
-FLAGS_CXX="-fstrict-aliasing -Wall -Wextra -pedantic"
-FLAGS_CXX_EXTRA="-fsanitize=address,undefined"
-
-FLAGS_RELEASE=""
-
-FLAGS_EXTRA="-lsfml-graphics -lsfml-window -lsfml-system"
-# FLAGS_EXTRA=""
+EXE="enn_tsp"
+CONFIG="Debug"
 
 if [[ "$1" == "run" ]]; then
-    FLAGS_RELEASE="-march=native -O3 -DNDEBUG"
-    FLAGS_CXX_EXTRA=""
-    shift
+    CONFIG="Release"
 fi
 
-echo "Compiling the following:"
-echo "$COMPILER $CXX_STANDARD $FLAGS_CXX $FLAGS_CXX_EXTRA $FLAGS_EXTRA $FLAGS_RELEASE $@"
-"$COMPILER" $CXX_STANDARD $FLAGS_CXX $FLAGS_CXX_EXTRA $FLAGS_EXTRA $FLAGS_RELEASE "$@"
-# sleep 2 &&
-# time ./a.out
+rm -rfv "${CONFIG}" &&
+mkdir -p "${CONFIG}" &&
+cmake -DCMAKE_CXX_COMPILER="/usr/bin/clang++" -DCMAKE_C_COMPILER="/usr/bin/clang" -DCMAKE_BUILD_TYPE="${CONFIG}" -S $PWD -B "${CONFIG}" &&
+# cmake -DCMAKE_CXX_COMPILER="/usr/bin/g++" -DCMAKE_C_COMPILER="/usr/bin/gcc" -DCMAKE_BUILD_TYPE="${CONFIG}" -S $PWD -B "${CONFIG}" &&
+cmake --build "${CONFIG}" &&
+mkdir -p bin &&
+cp "${CONFIG}/${EXE}" bin/"${EXE}"
+# cp "${CONFIG}/compile_commands.json" "${PWD}/compile_commands.json"

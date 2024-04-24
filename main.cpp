@@ -387,7 +387,7 @@ int runPipelineSingle(TSPInfo& info, const stdfs::path& data_path,
     info.m_points = num_cities;
     info.m_time = duration;
     info.m_timePerCity = static_cast<Value_t>(duration)/num_cities;
-    info.m_timePerIter = enn_tsp.timePerCity();
+    // info.m_timePerIter = enn_tsp.timePerCity();
     std::tie(info.m_timePerCityMin, info.m_timePerCityMax) = enn_tsp.timePerCityMinMax();
     std::cout << "\n" + utils::Line_Str + "\n";
     std::cout << "[Info]: Total distance is : " << dist << '\n';
