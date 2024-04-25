@@ -1,6 +1,7 @@
 // -*- C++ -*-
 #include "tsp_discrete_enn.hpp"
 #include "utils.hpp"
+#include <cstddef>
 
 namespace stdfs = std::filesystem;
 
@@ -13,10 +14,12 @@ const std::string& Data_Dir{ "Data/ALL_tsp" };
 const std::string& Data_Filename_berlin{ "berlin52.tsp" };
 
 int runPipelineSingle(TSPInfo& info, const stdfs::path& data_path,
-                      std::default_random_engine& rng, bool draw, bool draw_failed,
-                      bool show_coords, bool randomize);
-int runPipelineDir(TSPInfoVect_t& infos, const TSPInfoVect_t& opt_infos, const stdfs::path& data_path,
-                   std::default_random_engine& rng, bool draw, bool draw_failed, bool show_coords, bool randomize);
+                      std::default_random_engine& rng, bool draw,
+                      bool draw_failed, bool show_coords, bool randomize);
+int runPipelineDir(TSPInfoVect_t& infos, const TSPInfoVect_t& opt_infos,
+                   const stdfs::path& data_path,
+                   std::default_random_engine& rng, bool draw, bool draw_failed,
+                   bool show_coords, bool randomize);
 
 int main(int argc, char** argv)
 {
@@ -48,14 +51,13 @@ int main(int argc, char** argv)
 
     const bool single_input{ utils::vectContains(std::string{ "--single" },
                                                  args) };
-    const bool draw_path{ utils::vectContains(std::string{ "--draw" },
-                                                  args) };
+    const bool draw_path{ utils::vectContains(std::string{ "--draw" }, args) };
     const bool draw_coords{ utils::vectContains(std::string{ "--show-coords" },
                                                 args) };
     const bool draw_failed{ utils::vectContains(std::string{ "--draw-failed" },
                                                 args) };
     const bool randomize{ utils::vectContains(std::string{ "--random" },
-                                                args) };
+                                              args) };
 
     std::string Data_Filename{ Data_Filename_berlin };
     stdfs::path Data_Path{ utils::getCleanPath(stdfs::current_path() /
@@ -81,8 +83,8 @@ int main(int argc, char** argv)
     if (single_input) {
         stdfs::path Data_FilePath = Data_Path / stdfs::path(Data_Filename);
         TSPInfo info{};
-        runs_failed =
-            runPipelineSingle(info, Data_FilePath, rng, draw_path, draw_failed, draw_coords, randomize);
+        runs_failed = runPipelineSingle(info, Data_FilePath, rng, draw_path,
+                                        draw_failed, draw_coords, randomize);
         if (runs_failed == 0) {
             infos.push_back(info);
         } else {
@@ -91,7 +93,9 @@ int main(int argc, char** argv)
                             "main");
         }
     } else {
-        runs_failed = runPipelineDir(infos, optimal_infos, Data_Path, rng, draw_path, draw_failed, draw_coords, randomize);
+        runs_failed = runPipelineDir(infos, optimal_infos, Data_Path, rng,
+                                     draw_path, draw_failed, draw_coords,
+                                     randomize);
     }
     if (runs_failed != 0) {
         utils::printErr("Runs failed: " + std::to_string(runs_failed) +
@@ -117,12 +121,14 @@ int main(int argc, char** argv)
         };
         const auto error = std::abs(info.m_distance - optimal_info.m_distance) /
                            optimal_info.m_distance;
-        info.m_error = utils::getRound2(error*100);
+        info.m_error = utils::getRound2(error * 100);
         info.m_distance = utils::getRound2(info.m_distance);
         optimal_info.m_distance = utils::getRound2(optimal_info.m_distance);
     }
     // const std::string& table_header{ "name\tpoints\terror\ttime(" + time_unit + ")\ttime per city(" + time_unit + ")\ttime per city min(" + time_unit + ")\ttime per city max(" + time_unit + ")\tdistance\toptimal_distance" };
-    const std::string& table_header{ "name\tpoints\terror\ttime(" + time_unit + ")\ttime per city(" + time_unit + ")\tdistance\toptimal_distance" };
+    const std::string& table_header{ "name\tpoints\terror\ttime(" + time_unit +
+                                     ")\ttime per city(" + time_unit +
+                                     ")\tdistance\toptimal_distance" };
     utils::printInfo(table_header);
     for (auto it{ optimal_infos.begin() }; it != optimal_infos.end(); ++it) {
         TSPInfo& opt_info{ *it };
@@ -134,9 +140,8 @@ int main(int argc, char** argv)
             continue;
         }
         TSPInfo& info{ infos[static_cast<std::size_t>(info_pos)] };
-        utils::printInfo(info.m_name +
-                         "\t" + std::to_string(info.m_points) + "\t" +
-                         std::to_string(info.m_error) + "\t" +
+        utils::printInfo(info.m_name + "\t" + std::to_string(info.m_points) +
+                         "\t" + std::to_string(info.m_error) + "\t" +
                          std::to_string(info.m_time) + "\t" +
                          std::to_string(info.m_timePerCity) + "\t" +
                          // std::to_string(info.m_timePerCityMin) + "\t" +
@@ -156,15 +161,14 @@ int main(int argc, char** argv)
             continue;
         }
         TSPInfo& info{ infos[static_cast<std::size_t>(info_pos)] };
-        table_file << (info.m_name +
-                         "\t" + std::to_string(info.m_points) + "\t" +
-                         std::to_string(info.m_error) + "\t" +
-                         std::to_string(info.m_time) + "\t" +
-                         std::to_string(info.m_timePerCity) + "\t" +
-                         // std::to_string(info.m_timePerCityMin) + "\t" +
-                         // std::to_string(info.m_timePerCityMax) + "\t" +
-                         std::to_string(info.m_distance) + "\t" +
-                         std::to_string(opt_info.m_distance))
+        table_file << (info.m_name + "\t" + std::to_string(info.m_points) +
+                       "\t" + std::to_string(info.m_error) + "\t" +
+                       std::to_string(info.m_time) + "\t" +
+                       std::to_string(info.m_timePerCity) + "\t" +
+                       // std::to_string(info.m_timePerCityMin) + "\t" +
+                       // std::to_string(info.m_timePerCityMax) + "\t" +
+                       std::to_string(info.m_distance) + "\t" +
+                       std::to_string(opt_info.m_distance))
                    << std::endl;
     }
     table_file.close();
@@ -180,15 +184,14 @@ int main(int argc, char** argv)
             continue;
         }
         TSPInfo& info{ infos[static_cast<std::size_t>(info_pos)] };
-        csv_file << (info.m_name +
-                         "," + std::to_string(info.m_points) + "," +
-                         std::to_string(info.m_error) + "," +
-                         std::to_string(info.m_time) + "," +
-                         std::to_string(info.m_timePerCity) + "," +
-                         // std::to_string(info.m_timePerCityMin) + "," +
-                         // std::to_string(info.m_timePerCityMax) + "," +
-                         std::to_string(info.m_distance) + "," +
-                         std::to_string(opt_info.m_distance))
+        csv_file << (info.m_name + "," + std::to_string(info.m_points) + "," +
+                     std::to_string(info.m_error) + "," +
+                     std::to_string(info.m_time) + "," +
+                     std::to_string(info.m_timePerCity) + "," +
+                     // std::to_string(info.m_timePerCityMin) + "," +
+                     // std::to_string(info.m_timePerCityMax) + "," +
+                     std::to_string(info.m_distance) + "," +
+                     std::to_string(opt_info.m_distance))
                  << std::endl;
     }
     csv_file.close();
@@ -196,8 +199,10 @@ int main(int argc, char** argv)
     return 0;
 }
 
-int runPipelineDir(TSPInfoVect_t& infos, const TSPInfoVect_t& opt_infos, const stdfs::path& data_path,
-                   std::default_random_engine& rng, bool draw, bool draw_failed, bool show_coords, bool randomize)
+int runPipelineDir(TSPInfoVect_t& infos, const TSPInfoVect_t& opt_infos,
+                   const stdfs::path& data_path,
+                   std::default_random_engine& rng, bool draw, bool draw_failed,
+                   bool show_coords, bool randomize)
 {
     if (not stdfs::is_directory(data_path)) {
         utils::printErr("provided path " + data_path.string() +
@@ -228,7 +233,8 @@ int runPipelineDir(TSPInfoVect_t& infos, const TSPInfoVect_t& opt_infos, const s
         //     utils::printInfo("skipping file pr2392 because of long run time.", "runPipelineDir");
         //     continue;;
         // }
-        if (runPipelineSingle(info, filepath, rng, draw, draw_failed, show_coords, randomize) != 0) {
+        if (runPipelineSingle(info, filepath, rng, draw, draw_failed,
+                              show_coords, randomize) != 0) {
             utils::printErr("pipeline failed for the path " + filepath.string(),
                             "runPipelineDir");
             ++runs_failed;
@@ -241,54 +247,60 @@ int runPipelineDir(TSPInfoVect_t& infos, const TSPInfoVect_t& opt_infos, const s
 }
 
 int runPipelineSingle(TSPInfo& info, const stdfs::path& data_path,
-                      std::default_random_engine& rng, bool draw, bool draw_failed,
-                      bool show_coords, bool randomize)
+                      std::default_random_engine& rng, bool draw,
+                      bool draw_failed, bool show_coords, bool randomize)
 {
     utils::printInfo("Running algorithm for " + data_path.string(),
                      "runPipelineSingle");
-    // -------------------------------------------
-    // Parse cities
-    // -------------------------------------------
-    Cities_t cities;
-    parseCities(cities, data_path.string());
-    if (randomize) {
-        std::shuffle(cities.begin(), cities.end(), rng);
-    }
-    const int num_cities = cities.size();
-
-    // -------------------------------------------
-    // Calculate layer details
-    // -------------------------------------------
-    int layers{ 0 };
-    int layers_val{ 1 };
-    while (true) {
-        ++layers;
-        layers_val *= 4;
-        if (layers_val >= num_cities)
-            break;
-    }
-    std::printf(
-        "[Info]: Total number of layers expected %d (power of 4 : %d) for number of cities %d.\n",
-        layers, layers_val, num_cities);
 
     // -------------------------------------------
     // Create and setup Discrete ENN Solver
     // -------------------------------------------
     DiscreteENN_TSP enn_tsp;
+    Cities_t& cities{ enn_tsp.cities() };
+    Indices_t& path = enn_tsp.path();
 
-    // -------------------------------------------
-    // Construct Stack
-    // -------------------------------------------
-    createStack(cities, enn_tsp.stack(), layers);
-    std::printf("[Info]: Total number of layers created %d.\n", layers);
+    {
+        // -------------------------------------------
+        // Parse cities
+        // -------------------------------------------
+        Cities_t cities_tmp;
+        parseCities(cities_tmp, data_path.string());
+        if (randomize) {
+            std::shuffle(cities_tmp.begin(), cities_tmp.end(), rng);
+        }
+        const int num_cities = cities_tmp.size();
+
+        // -------------------------------------------
+        // Calculate layer details
+        // -------------------------------------------
+        int layers{ 0 };
+        int layers_val{ 1 };
+        while (true) {
+            ++layers;
+            layers_val *= 4;
+            if (layers_val >= num_cities)
+                break;
+        }
+        std::printf(
+            "[Info]: Total number of layers expected %d (power of 4 : %d) for number of cities %d.\n",
+            layers, layers_val, num_cities);
+
+        // -------------------------------------------
+        // Construct Stack
+        // -------------------------------------------
+        createStack(cities_tmp, cities, layers);
+        std::printf("[Info]: Total number of layers created %d.\n", layers);
+    }
+    const std::size_t num_cities = cities.size();
 
     // -------------------------------------------
     // Initialize Path
     // -------------------------------------------
     enn_tsp.initializePath();
-    if (enn_tsp.path().size() == static_cast<std::size_t>(num_cities)) {
+    if (path.size() == static_cast<std::size_t>(num_cities)) {
         std::printf(
-            "[Info]: Algorithm complete. Only %d number of cities provided.",
+            "[Info]: Algorithm complete. Only %zu number of cities provided.",
             num_cities);
         return 0;
     }
@@ -302,7 +314,7 @@ int runPipelineSingle(TSPInfo& info, const stdfs::path& data_path,
 #if (TSP_DEBUG_PRINT > 0)
         std::cout << ("\n[Debug] (main): validatePath\n");
 #endif
-        NodeExp_t<bool> erased = enn_tsp.validatePath();
+        IndexExp_t<bool> erased = enn_tsp.validatePath();
         if (erased.err()) {
             std::cerr << "[Error] (main): validatePath failed\n";
             return 1;
@@ -336,40 +348,37 @@ int runPipelineSingle(TSPInfo& info, const stdfs::path& data_path,
     std::cout << "[Info] (main): Algorithm finished in " << duration
               << time_unit + "\n";
     std::cout << utils::Line_Str + "\n";
-    assert("[Error] (main): path size not equal to stack size" &&
-           (enn_tsp.path().size() == enn_tsp.stack().size()));
     assert("[Error] (main): path size not equal to number of cities" &&
-           (enn_tsp.path().size() == static_cast<std::size_t>(num_cities)));
+           (path.size() == num_cities));
 
-    Path_t& path = enn_tsp.path();
     const std::size_t num_nodes = path.size();
     for (std::size_t idx{ 0 }; idx != num_nodes; ++idx) {
-        const auto [valid, err] = enn_tsp.validateNode(path[idx]);
+        const auto [valid, err] = enn_tsp.validateNode(idx);
         if (err) {
             std::cerr
                 << "[Error] (main): Algoirthm has not found the optimal path\n";
             return 1;
         }
     }
-    NodeExp_t<bool> erased = enn_tsp.validatePath();
+    IndexExp_t<bool> erased = enn_tsp.validatePath();
     if (erased.err()) {
         std::cerr << "[Error] (main): final validatePath failed\n";
         if (draw_failed) {
-            drawPath(path, enn_tsp.stack(), show_coords);
+            drawPath(path, cities, show_coords);
         }
         return 1;
     }
     if (erased.has_value()) {
         std::cerr << "[Error] (main): final validatePath removed node(s)\n";
         if (draw_failed) {
-            drawPath(path, enn_tsp.stack(), show_coords);
+            drawPath(path, cities, show_coords);
         }
         return 1;
     }
     if (enn_tsp.checkIntersectPath()) {
         std::cerr << "[Error] (main): final checkIntersectPath failed\n";
         if (draw_failed) {
-            drawPath(path, enn_tsp.stack(), show_coords);
+            drawPath(path, cities, show_coords);
         }
         return 1;
     }
@@ -381,16 +390,16 @@ int runPipelineSingle(TSPInfo& info, const stdfs::path& data_path,
     Value_t dist{ 0.0 };
     for (std::size_t idx{ 0 }; idx != num_nodes; ++idx) {
         // path[idx]->print();
-        const auto idx_next{ static_cast<std::size_t>(
-            enn_tsp.properIndex(idx + 1)) };
-        dist += getDistance(*path[idx], *path[idx_next]);
+        const auto idx_next{ enn_tsp.properIndex(idx + 1) };
+        dist += getDistance(cities[path[idx]], cities[path[idx_next]]);
     }
     const std::string& filename{ data_path.stem().string() };
     info.m_name = filename;
     info.m_distance = dist;
     info.m_points = num_cities;
     info.m_time = utils::getRound2(duration);
-    info.m_timePerCity = utils::getRound2(static_cast<Value_t>(duration)/num_cities);
+    info.m_timePerCity =
+        utils::getRound2(static_cast<Value_t>(duration) / num_cities);
     // info.m_timePerIter = enn_tsp.timePerCity();
     // std::tie(info.m_timePerCityMin, info.m_timePerCityMax) = enn_tsp.timePerCityMinMax();
     std::cout << "\n" + utils::Line_Str + "\n";
@@ -398,7 +407,7 @@ int runPipelineSingle(TSPInfo& info, const stdfs::path& data_path,
     std::cout << utils::Line_Str + "\n";
 
     if (draw) {
-        drawPath(path, enn_tsp.stack(), show_coords);
+        drawPath(path, cities, show_coords);
     }
     utils::printInfo("Finished algorithm for " + data_path.string(),
                      "runPipelineSingle");
