@@ -1006,9 +1006,9 @@ public:
                         "run");
                     return false;
                 }
+                pos = stackBack();
                 continue;
             }
-            // TimePoint_t start_time = std::chrono::steady_clock::now();
             const int idx_added = findBestInsertion(pos);
             if (idx_added == -1) {
                 utils::printErr("findBestInsertion failed at index " +
@@ -1028,15 +1028,22 @@ public:
                                 "run");
                 return false;
             }
-            // if (print_pos) {
-            //     utils::printInfo("Adding node for pos " + std::to_string(pos) +
-            //                      " at " + std::to_string(idx_added) +
-            //                      " path size " +
-            //                      std::to_string(m_path.size()));
-            // }
+            if (print_pos) {
+                const auto [idx_prev, idx_next] = getNeigbhours(idx_added);
+                utils::printInfo("Adding node for city " + std::to_string(pos) +
+                                 " at " + std::to_string(idx_added) +
+                                 " with neighbours (" + std::to_string(idx_prev) + ", " + std::to_string(idx_next) + ")" +
+                                 " having cities (" + std::to_string(m_path[idx_prev]) + ", " + std::to_string(m_path[idx_next]) + ")" +
+                                 " path size " +
+                                 std::to_string(m_path.size()));
+                m_cities[m_path[idx_prev]].print();
+                m_cities[m_path[idx_added]].print();
+                m_cities[m_path[idx_next]].print();
+            }
             // if (checkIntersectPath()) {
             //     utils::printErr("intersection after adding node at " +
             //                         std::to_string(idx_added) +
+            //                         " for city " + std::to_string(m_path[idx_added]) +
             //                         " current path size " +
             //                         std::to_string(m_path.size()),
             //                     "run");
@@ -1056,36 +1063,42 @@ public:
             //     drawPath(m_path, m_cities, false);
             //     // return false;
             // }
-            // if (print_pos and it_erased1.has_value()) {
-            //     utils::printInfo("Adding node for pos " + std::to_string(pos) +
-            //                      " at " + std::to_string(idx_added) +
-            //                      " and removing intersection node " +
-            //                      std::to_string(*it_erased1) + " path size " +
-            //                      std::to_string(m_path.size()));
-            // }
+            if (print_pos and it_erased1.has_value()) {
+                utils::printInfo("After adding node for city " + std::to_string(pos) +
+                                 " at " + std::to_string(idx_added) +
+                                 " and removing intersection city " +
+                                 std::to_string(*it_erased1) + " path size " +
+                                 std::to_string(m_path.size()));
+                m_cities[*it_erased1].print();
+            }
 
             const auto it_erased2 = validatePath();
             if (it_erased2.err()) {
                 utils::printErr("validatePath failed", "run");
                 return false;
             }
-            // if (print_pos and it_erased2.has_value()) {
-            //     utils::printInfo("Adding node for pos " + std::to_string(pos) +
-            //                      " at " + std::to_string(idx_added) +
-            //                      " and removing validation node " +
-            //                      std::to_string(it_erased2.value()) +
-            //                      " path size " + std::to_string(m_path.size()));
-            // }
-            // if (checkIntersectPath()) {
-            //     utils::printErr("intersection after validatePath", "run");
-            //     drawPath(m_path, m_cities, false);
-            //     return false;
-            // }
-            if (m_fromScratch) {
-                // const int idx_rand{ distrib(gen) };
-                // pos = stackAt(idx_rand);
-                continue;
+            if (print_pos and it_erased2.has_value()) {
+                utils::printInfo("After adding node for pos " + std::to_string(pos) +
+                                 " at " + std::to_string(idx_added) +
+                                 " and removing validation city " +
+                                 std::to_string(it_erased2.value()) +
+                                 " path size " + std::to_string(m_path.size()));
+                m_cities[it_erased2.value()].print();
             }
+            // if (checkIntersectPath()) {
+            //     utils::printErr(
+            //         "intersection after validatePath from adding node at " +
+            //             std::to_string(idx_added) + " current path size " +
+            //             std::to_string(m_path.size()),
+            //         "run");
+            //     drawPath(m_path, m_cities, false);
+            //     // return false;
+            // }
+            // if (m_fromScratch) {
+            //     // const int idx_rand{ distrib(gen) };
+            //     pos = stackAt(idx_rand);
+            //     continue;
+            // }
 
             // if (it_erased1.has_value() or it_erased2.has_value()) {
             //     distrib.param(distrib_t::param_type(0, m_stack.size() - 1));
@@ -1119,7 +1132,6 @@ public:
                                      std::to_string(m_path.size()) + "/" +
                                      std::to_string(num_cities),
                                  "run");
-                std::cout << std::endl;
                 // if (flip) {
                 //     distrib.param(distrib_t::param_type(0, m_path.size() - 1));
                 // } else {
@@ -1129,8 +1141,10 @@ public:
                 // flip = not flip;
                 distrib.param(distrib_t::param_type(0, stack_size - 1));
                 const int idx_rand{ distrib(gen) };
+                // const int idx_rand = stack_size - 2;
+                // const int idx_rand = 0;
                 utils::printInfo(
-                    "New starting point " + std::to_string(idx_rand), "run");
+                    "New starting point " + std::to_string(idx_rand) + " with city " + std::to_string(m_stack[idx_rand]), "run");
                 pos = stackAt(idx_rand);
                 continue;
 #if (TSP_DEBUG_PRINT > 0)
