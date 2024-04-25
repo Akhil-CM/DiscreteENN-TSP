@@ -24,7 +24,7 @@ def runUntilFailure(cmd, args):
 
         if exit_code != 0:
             print(f"command: {cmd} failed.")
-            print("Exit code: ", process.returncode)
+            print("Exit code: ", exit_code)
             print("Standard Output:\n", stdout.decode())
             print("Error Output:\n", stderr.decode())
             break

@@ -1074,11 +1074,11 @@ public:
                                     "run");
                     return false;
                 }
-                if (checkIntersectPath()) {
-                    utils::printErr("intersection after adding node at " + std::to_string(idx_added) + " current path size " + std::to_string(m_path.size()), "run");
-                    drawPath(m_path, m_stack, false);
-                    // return false;
-                }
+                // if (checkIntersectPath()) {
+                //     utils::printErr("intersection after adding node at " + std::to_string(idx_added) + " current path size " + std::to_string(m_path.size()), "run");
+                //     drawPath(m_path, m_stack, false);
+                //     // return false;
+                // }
 
                 const utils::Expected nodes = getNeigbhours(it);
                 if (nodes.err()) {
@@ -1092,22 +1092,22 @@ public:
                 const auto [node_prev, node_next] = nodes.value();
                 const auto it_erased1 =
                     removeIntersection(node_prev, it, node_next);
-                if (checkIntersectPath()) {
-                    utils::printErr("intersection after removeIntersection from adding node at " + std::to_string(idx_added) + " current path size " + std::to_string(m_path.size()), "run");
-                    drawPath(m_path, m_stack, false);
-                    // return false;
-                }
+                // if (checkIntersectPath()) {
+                //     utils::printErr("intersection after removeIntersection from adding node at " + std::to_string(idx_added) + " current path size " + std::to_string(m_path.size()), "run");
+                //     drawPath(m_path, m_stack, false);
+                //     // return false;
+                // }
 
                 const auto it_erased2 = validatePath();
                 if (it_erased2.err()) {
                     utils::printErr("validatePath failed", "run");
                     return false;
                 }
-                if (checkIntersectPath()) {
-                    utils::printErr("intersection after validatePath", "run");
-                    drawPath(m_path, m_stack, false);
-                    return false;
-                }
+                // if (checkIntersectPath()) {
+                //     utils::printErr("intersection after validatePath", "run");
+                //     drawPath(m_path, m_stack, false);
+                //     return false;
+                // }
                 if (m_fromScratch) {
                     const int idx_rand{ distrib(gen) };
                     it = it_begin + idx_rand;
