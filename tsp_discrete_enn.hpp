@@ -84,6 +84,8 @@ typedef std::map<int, Cities_t> CityLayers_t;
 typedef std::optional<Node_t> NodeOpt_t;
 template <typename T> using NodeExp_t = utils::Expected<Node_t, T>;
 
+void drawPath(const Path_t& path, const Cities_t& stack, bool show_coords);
+
 template <> inline bool utils::MatchItem<City>::operator()(const City& city)
 {
     return (city.id == m_item.id);
@@ -958,13 +960,13 @@ public:
                                 std::to_string(intersect0) + ", " +
                                 std::to_string(intersect_next) + ")",
                             "checkIntersectPath");
-            utils::printErr("node 0");
+            utils::printInfo("node 0");
             m_path[0]->print();
-            utils::printErr("node last");
+            utils::printInfo("node last");
             (m_path.back())->print();
-            utils::printErr("node " + std::to_string(intersect0));
+            utils::printInfo("node " + std::to_string(intersect0));
             m_path[static_cast<std::size_t>(intersect0)]->print();
-            utils::printErr("node " + std::to_string(intersect_next));
+            utils::printInfo("node " + std::to_string(intersect_next));
             m_path[intersect_next]->print();
             return true;
         }
@@ -972,19 +974,19 @@ public:
             int intersect{ checkIntersectEdge(idx, idx + 1) };
             if (intersect != -1) {
                 const std::size_t intersect_next{ properIndex(intersect + 1) };
-                utils::printErr("Found an intersection for edge (" +
+                utils::printInfo("Found an intersection for edge (" +
                                     std::to_string(idx) + ", " +
                                     std::to_string(idx + 1) + ") and edge (" +
                                     std::to_string(intersect) + ", " +
                                     std::to_string(intersect_next) + ")",
                                 "checkIntersectPath");
-                utils::printErr("node " + std::to_string(idx));
+                utils::printInfo("node " + std::to_string(idx));
                 m_path[idx]->print();
-                utils::printErr("node " + std::to_string(idx + 1));
+                utils::printInfo("node " + std::to_string(idx + 1));
                 m_path[idx + 1]->print();
-                utils::printErr("node " + std::to_string(intersect));
+                utils::printInfo("node " + std::to_string(intersect));
                 m_path[static_cast<std::size_t>(intersect)]->print();
-                utils::printErr("node " + std::to_string(intersect_next));
+                utils::printInfo("node " + std::to_string(intersect_next));
                 m_path[intersect_next]->print();
                 return true;
             }
@@ -1072,6 +1074,11 @@ public:
                                     "run");
                     return false;
                 }
+                if (checkIntersectPath()) {
+                    utils::printErr("intersection after adding node at " + std::to_string(idx_added) + " current path size " + std::to_string(m_path.size()), "run");
+                    drawPath(m_path, m_stack, false);
+                    // return false;
+                }
 
                 const utils::Expected nodes = getNeigbhours(it);
                 if (nodes.err()) {
@@ -1085,10 +1092,20 @@ public:
                 const auto [node_prev, node_next] = nodes.value();
                 const auto it_erased1 =
                     removeIntersection(node_prev, it, node_next);
+                if (checkIntersectPath()) {
+                    utils::printErr("intersection after removeIntersection from adding node at " + std::to_string(idx_added) + " current path size " + std::to_string(m_path.size()), "run");
+                    drawPath(m_path, m_stack, false);
+                    // return false;
+                }
 
                 const auto it_erased2 = validatePath();
                 if (it_erased2.err()) {
                     utils::printErr("validatePath failed", "run");
+                    return false;
+                }
+                if (checkIntersectPath()) {
+                    utils::printErr("intersection after validatePath", "run");
+                    drawPath(m_path, m_stack, false);
                     return false;
                 }
                 if (m_fromScratch) {

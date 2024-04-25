@@ -1,22 +1,40 @@
 import matplotlib.pyplot as plt
 
-# List of pairs of coordinates, where each pair is a line segment
-# Each element is ((x1, y1), (x2, y2))
-line_segments = [
-    ((6850.000000, 11700.000000), (6665.000000, 11710.000000)),
-    ((6665.000000, 11860.000000), (6775.000000, 11650.000000)),
+points = [
+    (254.919998, 271.649994), (418.920013, 200.149994),
+    (582.419983, 321.149994), (155.419998, 150.649994),
+]
+points_ref2 = [
+    (418.920013, 200.149994), (176.919998, 328.149994),
+    (582.419983, 321.149994), (155.419998, 150.649994),
+]
+points = [
+    (418.920013, 200.149994), (176.919998, 328.149994),
+    (582.419983, 321.149994), (155.419998, 150.649994),
 ]
 
-# Create a plot
+
 plt.figure(figsize=(8, 6))
 
-# Plot each line segment
-for segment in line_segments:
-    start_point, end_point = segment
-    x_values = [start_point[0], end_point[0]]
-    y_values = [start_point[1], end_point[1]]
+point1, point, point2, point3 = points
 
-    plt.plot(x_values, y_values, marker='o', linestyle='-', markersize=5)  # 'o' for circle markers
+x_values = [point1[0], point[0]]
+y_values = [point1[1], point[1]]
+plt.plot(x_values, y_values, marker='o', color="red", linestyle='--', markersize=5)  # 'o' for circle markers
+
+x_values = [point[0], point2[0]]
+y_values = [point[1], point2[1]]
+plt.plot(x_values, y_values, marker='o', color="red", linestyle='-', markersize=5)  # 'o' for circle markers
+
+x_values = [point2[0], point3[0]]
+y_values = [point2[1], point3[1]]
+plt.plot(x_values, y_values, marker='o', color="violet", linestyle='-', markersize=5)  # 'o' for circle markers
+
+plt.plot(point[0], point[1], marker='x', color="green", markersize=10)  # 'o' for circle markers
+
+x_values = [point1[0], point2[0]]
+y_values = [point1[1], point2[1]]
+plt.plot(x_values, y_values, marker='o', color="blue", linestyle='--', markersize=5)  # 'o' for circle markers
 
 # Add titles and labels
 plt.title('Line Segments')
