@@ -27,7 +27,10 @@ def runCommand(cmd, args):
 
     for line in process.stdout:
         if line:
-            print(str(line.strip(), 'utf-8'))
+            line = str(line.strip(), 'utf-8')
+            if "[Error]" in line:
+                sys.exit(1)
+            print(line)
     time.sleep(1)
     os.system('clear')
 
@@ -49,9 +52,13 @@ def main():
 
     print()
     print()
+    count = 0
     while True:
         if runCommand(command, command_args) != 0:
             break;
+        time.sleep(1)
+        count += 1
+        print(f"Running #{count} iteration")
 
 if __name__ == "__main__":
     main()

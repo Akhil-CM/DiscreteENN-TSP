@@ -238,7 +238,7 @@ int runPipelineDir(TSPInfoVect_t& infos, const TSPInfoVect_t& opt_infos,
             utils::printErr("pipeline failed for the path " + filepath.string(),
                             "runPipelineDir");
             ++runs_failed;
-            continue;
+            break;
         }
         infos.push_back(info);
     }

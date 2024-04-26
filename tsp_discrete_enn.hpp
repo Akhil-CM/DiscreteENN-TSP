@@ -9,6 +9,7 @@
 #include <random>
 #include <numeric>
 #include <map>
+#include <stdexcept>
 #include <string>
 #include <unordered_set>
 #include <cmath>
@@ -25,7 +26,7 @@
 #include <SFML/Graphics.hpp>
 #endif
 
-#define TSP_DEBUG_PRINT 0
+#define TSP_DEBUG_PRINT 1
 #define TSP_DEBUG_CHECK 0
 
 using TimeMilliS_t = std::chrono::milliseconds;
@@ -85,7 +86,8 @@ typedef std::vector<std::size_t> Indices_t;
 typedef std::optional<std::size_t> IndexOpt_t;
 template <typename T> using IndexExp_t = utils::Expected<std::size_t, T>;
 
-void drawPath(const Indices_t& path, const Cities_t& cities, bool show_coords, const std::string& title);
+void drawPath(const Indices_t& path, const Cities_t& cities, bool show_coords,
+              const std::string& title);
 
 template <> inline bool utils::MatchItem<City>::operator()(const City& city)
 {
@@ -504,6 +506,7 @@ public:
 
     void removeNode(std::size_t index)
     {
+        const std::string& before{m_pattern};
         const std::size_t pos{ m_path[index] };
         const std::string& node_idx_str{ "|" + std::to_string(pos) + "|" };
         std::string::size_type idx_erase = m_pattern.find(node_idx_str);
@@ -580,7 +583,11 @@ public:
     {
         const int num_nodes = m_path.size();
         if (num_nodes < 3) {
-            utils::printErr("given path size less than 3", "nodeCost");
+            utils::printErr("given path size (" + std::to_string(num_nodes) + ") less than 3", "nodeCost");
+            utils::printErr("cities size (" + std::to_string(m_cities.size()) + ")", "nodeCost");
+            std::cout.flush();
+            std::cerr.flush();
+            throw std::runtime_error{"Invalid path size"};
             return VALUE_ONE_NEG;
         }
         const auto [idx_prev, idx_next] = getNeigbhours(index);
@@ -752,6 +759,95 @@ public:
         return best_index;
     }
 
+    auto findEdge(std::size_t pos_start, std::size_t pos_end)
+    {
+        const std::size_t num_nodes = m_path.size();
+        if (pos_start == m_path.back() and pos_end == m_path[0]) {
+            return std::make_pair(int(num_nodes - 1), 0);
+        }
+        for (std::size_t idx{ 0 }; idx != (num_nodes - 1); ++idx) {
+            if (pos_start == m_path[idx] and pos_end == m_path[idx + 1]) {
+                return std::make_pair(int(idx), int(idx + 1));
+            }
+        }
+        return std::make_pair(-1, -1);
+    }
+
+    IndexOpt_t removeIntersection(std::size_t start, std::size_t end)
+    {
+        IndexOpt_t pos_erased{ std::nullopt };
+        const std::size_t pos_start{ m_path[start] };
+        const std::size_t pos_end{ m_path[end] };
+        const City& city_start{ m_cities[pos_start] };
+        const City& city_end{ m_cities[pos_end] };
+        std::size_t num_nodes{ m_path.size() };
+        for (std::size_t idx{ 0 }; idx != num_nodes; ++idx) {
+            if (city_start.on_stack or city_end.on_stack) {
+                break;
+            }
+            const std::size_t idx_next{ properIndex(idx + 1) };
+            const bool ok_start = start != idx and start != (idx_next);
+            const bool ok_end = end != idx and end != (idx_next);
+            if (ok_start and ok_end) {
+                const std::size_t pos{ m_path[idx] };
+                const std::size_t pos_next{ m_path[idx_next] };
+                const City& city{ m_cities[pos] };
+                const City& city_next{ m_cities[pos_next] };
+                if (hasIntersection(city_start, city_end, city, city_next)) {
+                    if (sameCoords(city_start, city) or
+                        sameCoords(city_start, city_next) or
+                        sameCoords(city_end, city) or
+                        sameCoords(city_end, city_next)) {
+                        continue;
+                    } else {
+                        std::size_t idx_remove{ idx };
+                        std::size_t idx_remove_next{ idx_next };
+                        if (getDistance(city_start, city_end) >
+                            getDistance(city, city_next)) {
+                            auto [start_new, end_new] = findEdge(pos_start, pos_end);
+                            if (start_new == -1) {
+                                utils::printErr("Tried to find a non-existing edge");
+                                throw std::runtime_error{"Tried to find a non-existing edge"};
+                            }
+                            idx_remove = start_new;
+                            idx_remove_next = end_new;
+                        }
+                        if (pos_erased.has_value()) {
+                            pos_erased = std::min(
+                                *pos_erased, std::min(m_path[idx_remove],
+                                                      m_path[idx_remove_next]));
+                        } else {
+                            pos_erased = std::min(m_path[idx_remove],
+                                                  m_path[idx_remove_next]);
+                        }
+                        removeNode(idx_remove);
+                        removeNode(properIndex(idx_remove));
+                        if ((num_nodes - 2) == 2) {
+                            m_fromScratch = true;
+                            break;
+                        }
+                        const std::size_t idx_curr{ (idx_remove == num_nodes -1) ? 0 : properIndex(idx_remove) };
+                        const std::size_t idx_prev{ properIndex(int(idx_curr) -
+                                                                1) };
+                        updateCost(idx_curr);
+                        updateCost(idx_prev);
+                        if (m_rmIntersectRecurse) {
+                            auto pos_erased_tmp =
+                                removeIntersection(idx_prev, idx_curr);
+                            if (pos_erased_tmp.has_value()) {
+                                pos_erased =
+                                    std::min(*pos_erased, *pos_erased_tmp);
+                            }
+                        }
+                        num_nodes = m_path.size();
+                        idx = 0;
+                    }
+                }
+            }
+        }
+        return pos_erased;
+    }
+
     IndexOpt_t removeIntersection(std::size_t pos_prev, std::size_t pos_curr,
                                   std::size_t pos_next)
     {
@@ -811,8 +907,7 @@ public:
         std::size_t num_nodes = m_path.size();
         [[maybe_unused]] int num_nodes_prev{ 0 };
         for (std::size_t idx{ 0 }; idx != num_nodes;) {
-            if (num_nodes == 2) {
-                m_fromScratch = true;
+            if (m_fromScratch) {
                 break;
             }
             const std::size_t pos{ m_path[idx] };
@@ -836,13 +931,17 @@ public:
             } else {
                 pos_erased = pos;
             }
+            if (num_nodes == 2) {
+                m_fromScratch = true;
+                break;
+            }
             const auto idx_next = properIndex(idx);
             const auto idx_prev = properIndex(static_cast<int>(idx_next) - 1);
             updateCost(idx_next);
             updateCost(idx_prev);
             if (m_validIntersectCK) {
                 IndexOpt_t pos_erased_tmp =
-                    removeIntersection(m_path[idx_prev], pos, m_path[idx_next]);
+                    removeIntersection(idx_prev, idx_next);
                 if (pos_erased_tmp.has_value()) {
                     pos_erased = ((*pos_erased_tmp) < (*pos_erased)) ?
                                      pos_erased_tmp :
@@ -980,7 +1079,10 @@ public:
             m_initialSize = 0.10f * num_cities;
             m_initialSize = (m_initialSize == 0) ? 3 : m_initialSize;
         }
-        for (int idx{ 0 }; idx != m_initialSize; ++idx) {
+        const std::size_t pos{ stackBack() };
+        m_path.push_back(pos);
+        m_pattern = "|" + std::to_string(pos) + "|";
+        for (int idx{ 1 }; idx != m_initialSize; ++idx) {
             const std::size_t pos{ stackBack() };
             m_path.push_back(pos);
             m_pattern += "|" + std::to_string(pos) + "|";
@@ -999,7 +1101,7 @@ public:
         [[maybe_unused]] bool flip = false;
         [[maybe_unused]] bool print_pos{ false };
         std::size_t pos{ stackBack() };
-        int idx_added{-1};
+        int idx_added{ -1 };
         while (true) {
             if (m_fromScratch) {
                 idx_added = 0;
@@ -1053,8 +1155,15 @@ public:
             // }
 
             const auto [idx_prev, idx_next] = getNeigbhours(idx_added);
-            const auto it_erased1 =
-                removeIntersection(m_path[idx_prev], pos, m_path[idx_next]);
+            const std::size_t pos_added{ m_path[idx_added] },
+                pos_next{ m_path[idx_next] };
+            const auto it_erased1 = removeIntersection(idx_prev, idx_added);
+            const auto edge_next{ findEdge(pos_added, pos_next) };
+            if (edge_next.first != -1) {
+                removeIntersection(edge_next.first, edge_next.second);
+            }
+            // const auto it_erased1 =
+            //     removeIntersection(m_path[idx_prev], pos, m_path[idx_next]);
             // if (checkIntersectPath()) {
             //     utils::printErr(
             //         "intersection after removeIntersection from adding node at " +
@@ -1128,7 +1237,7 @@ public:
                 break;
             }
             if (not pattern_hashes.insert(m_pattern).second) {
-                print_pos = true;
+                // print_pos = true;
                 utils::printInfo(
                     "Found repeating pattern. Randomize input node", "run");
                 utils::printInfo("Path progress " +
@@ -1279,7 +1388,8 @@ void fitPointsInWindow(Cities_t& cities, const sf::Vector2u& window_size,
     }
 }
 
-void drawPath(const Indices_t& path, const Cities_t& cities, bool show_coords, const std::string& title)
+void drawPath(const Indices_t& path, const Cities_t& cities, bool show_coords,
+              const std::string& title)
 {
     // Get the current desktop video mode
     [[maybe_unused]] sf::VideoMode desktopMode =
