@@ -42,7 +42,7 @@ typedef float Value_t;
 constexpr Value_t VALUE_ZERO{ Value_t{ 0 } };
 constexpr Value_t VALUE_ONE_NEG{ Value_t{ -1 } };
 
-constexpr std::size_t Num_Nodes_Initial{ 3 };
+constexpr std::size_t Num_Nodes_Initial{ 10 };
 constexpr bool Validation_Intersection{ true };
 constexpr bool Intersection_Recursive{ true };
 constexpr int Iter_Randomize{ 50 };
@@ -85,7 +85,7 @@ typedef std::vector<std::size_t> Indices_t;
 typedef std::optional<std::size_t> IndexOpt_t;
 template <typename T> using IndexExp_t = utils::Expected<std::size_t, T>;
 
-void drawPath(const Indices_t& path, const Cities_t& cities, bool show_coords);
+void drawPath(const Indices_t& path, const Cities_t& cities, bool show_coords, const std::string& title);
 
 template <> inline bool utils::MatchItem<City>::operator()(const City& city)
 {
@@ -453,6 +453,10 @@ public:
     {
         return m_path;
     }
+    std::string& name()
+    {
+        return m_name;
+    }
     int& initialSize()
     {
         return m_initialSize;
@@ -532,15 +536,12 @@ public:
         }
         const std::size_t pos{ m_path[index] };
         const City& city{ m_cities[pos] };
-        const Value_t cost_current{ m_cities[pos].cost };
-        if (utils::isEqual(cost_current, VALUE_ZERO)) {
-            return std::make_pair(true, false);
-        }
+        const Value_t cost_check{ m_cities[pos].cost };
         if (index != 0 and index != (num_nodes - 1)) {
             const std::size_t pos{ m_path[num_nodes - 1] };
             const std::size_t pos_next{ m_path[0] };
             if (insertionCost(city, m_cities[pos], m_cities[pos_next]) <
-                cost_current) {
+                cost_check) {
                 return std::make_pair(false, false);
             }
         }
@@ -550,8 +551,12 @@ public:
             }
             const std::size_t pos{ m_path[idx] };
             const std::size_t pos_next{ m_path[idx + 1] };
-            if (insertionCost(city, m_cities[pos], m_cities[pos_next]) <
-                cost_current) {
+            const Value_t cost_current{ insertionCost(city, m_cities[pos],
+                                                      m_cities[pos_next]) };
+            if (utils::isEqual(cost_check, cost_current)) {
+                continue;
+            }
+            if (cost_current < cost_check) {
                 return std::make_pair(false, false);
             }
         }
@@ -581,12 +586,9 @@ public:
         const auto [idx_prev, idx_next] = getNeigbhours(index);
         const std::size_t pos_prev{ m_path[idx_prev] },
             pos_curr{ m_path[index] }, pos_next{ m_path[idx_next] };
-        const Value_t cost = isCollinear(m_cities[pos_curr], m_cities[pos_prev],
-                                         m_cities[pos_next]) ?
-                                 VALUE_ZERO :
-                                 insertionCost(m_cities[pos_curr],
-                                               m_cities[pos_prev],
-                                               m_cities[pos_next]);
+        Value_t cost = insertionCost(m_cities[pos_curr], m_cities[pos_prev],
+                                     m_cities[pos_next]);
+        cost = utils::isEqual(cost, VALUE_ZERO) ? VALUE_ZERO : cost;
         m_cities[pos_curr].cost = cost;
         return cost;
     }
@@ -738,6 +740,9 @@ public:
             }
             const Value_t cost =
                 insertionCost(new_city, m_cities[pos], m_cities[pos_next]);
+            if (utils::isEqual(cost, min_cost)) {
+                continue;
+            }
             if (cost < min_cost) {
                 min_cost = cost;
                 best_index = idx + 1;
@@ -994,29 +999,21 @@ public:
         [[maybe_unused]] bool flip = false;
         [[maybe_unused]] bool print_pos{ false };
         std::size_t pos{ stackBack() };
+        int idx_added{-1};
         while (true) {
             if (m_fromScratch) {
+                idx_added = 0;
                 m_fromScratch = false;
-                addNode(0, pos);
-                const auto [discard1, err1] = updateCostNeighbour(0, true);
-                if (err1) {
-                    utils::printErr(
-                        "updateCostNeighbour failed at index 0 for for path size " +
-                            std::to_string(m_path.size()),
-                        "run");
+            } else {
+                idx_added = findBestInsertion(pos);
+                if (idx_added == -1) {
+                    utils::printErr("findBestInsertion failed at index " +
+                                        std::to_string(idx_added) +
+                                        " for for path size " +
+                                        std::to_string(m_path.size()),
+                                    "run");
                     return false;
                 }
-                pos = stackBack();
-                continue;
-            }
-            const int idx_added = findBestInsertion(pos);
-            if (idx_added == -1) {
-                utils::printErr("findBestInsertion failed at index " +
-                                    std::to_string(idx_added) +
-                                    " for for path size " +
-                                    std::to_string(m_path.size()),
-                                "run");
-                return false;
             }
             addNode(idx_added, pos);
             const auto [discard1, err1] = updateCostNeighbour(idx_added, true);
@@ -1030,15 +1027,19 @@ public:
             }
             if (print_pos) {
                 const auto [idx_prev, idx_next] = getNeigbhours(idx_added);
-                utils::printInfo("Adding node for city " + std::to_string(pos) +
-                                 " at " + std::to_string(idx_added) +
-                                 " with neighbours (" + std::to_string(idx_prev) + ", " + std::to_string(idx_next) + ")" +
-                                 " having cities (" + std::to_string(m_path[idx_prev]) + ", " + std::to_string(m_path[idx_next]) + ")" +
-                                 " path size " +
-                                 std::to_string(m_path.size()));
+                utils::printInfo(
+                    "Adding node for city " + std::to_string(pos) + " at " +
+                    std::to_string(idx_added) + " with neighbours (" +
+                    std::to_string(idx_prev) + ", " + std::to_string(idx_next) +
+                    ")" + " having cities (" +
+                    std::to_string(m_path[idx_prev]) + ", " +
+                    std::to_string(m_path[idx_next]) + ")" + " path size " +
+                    std::to_string(m_path.size()));
+                m_cities[m_path[properIndex(int(idx_prev) - 1)]].print();
                 m_cities[m_path[idx_prev]].print();
                 m_cities[m_path[idx_added]].print();
                 m_cities[m_path[idx_next]].print();
+                m_cities[m_path[properIndex(idx_next + 1)]].print();
             }
             // if (checkIntersectPath()) {
             //     utils::printErr("intersection after adding node at " +
@@ -1047,7 +1048,7 @@ public:
             //                         " current path size " +
             //                         std::to_string(m_path.size()),
             //                     "run");
-            //     drawPath(m_path, m_cities, false);
+            //     drawPath(m_path, m_cities, false, m_name);
             //     // return false;
             // }
 
@@ -1060,12 +1061,13 @@ public:
             //             std::to_string(idx_added) + " current path size " +
             //             std::to_string(m_path.size()),
             //         "run");
-            //     drawPath(m_path, m_cities, false);
+            //     drawPath(m_path, m_cities, false, m_name);
             //     // return false;
             // }
             if (print_pos and it_erased1.has_value()) {
-                utils::printInfo("After adding node for city " + std::to_string(pos) +
-                                 " at " + std::to_string(idx_added) +
+                utils::printInfo("After adding node for city " +
+                                 std::to_string(pos) + " at " +
+                                 std::to_string(idx_added) +
                                  " and removing intersection city " +
                                  std::to_string(*it_erased1) + " path size " +
                                  std::to_string(m_path.size()));
@@ -1078,8 +1080,9 @@ public:
                 return false;
             }
             if (print_pos and it_erased2.has_value()) {
-                utils::printInfo("After adding node for pos " + std::to_string(pos) +
-                                 " at " + std::to_string(idx_added) +
+                utils::printInfo("After adding node for pos " +
+                                 std::to_string(pos) + " at " +
+                                 std::to_string(idx_added) +
                                  " and removing validation city " +
                                  std::to_string(it_erased2.value()) +
                                  " path size " + std::to_string(m_path.size()));
@@ -1091,7 +1094,7 @@ public:
             //             std::to_string(idx_added) + " current path size " +
             //             std::to_string(m_path.size()),
             //         "run");
-            //     drawPath(m_path, m_cities, false);
+            //     drawPath(m_path, m_cities, false, m_name);
             //     // return false;
             // }
             // if (m_fromScratch) {
@@ -1143,14 +1146,16 @@ public:
                 const int idx_rand{ distrib(gen) };
                 // const int idx_rand = stack_size - 2;
                 // const int idx_rand = 0;
-                utils::printInfo(
-                    "New starting point " + std::to_string(idx_rand) + " with city " + std::to_string(m_stack[idx_rand]), "run");
+                utils::printInfo("New starting point " +
+                                     std::to_string(idx_rand) + " with city " +
+                                     std::to_string(m_stack[idx_rand]),
+                                 "run");
                 pos = stackAt(idx_rand);
                 continue;
 #if (TSP_DEBUG_PRINT > 0)
                 std::cout << ("\n[Debug] (run): drawPath started\n");
 #endif
-                // drawPath(path, stack, true);
+                // drawPath(path, stack, true, m_name);
 #if (TSP_DEBUG_PRINT > 0)
                 std::cout << ("[Debug] (run): drawPath ended\n");
 #endif
@@ -1191,6 +1196,7 @@ private:
     Value_t m_timePerIter{ VALUE_ZERO };
     Value_t m_timePerIterMin{ std::numeric_limits<Value_t>::max() };
     Value_t m_timePerIterMax{ VALUE_ONE_NEG };
+    std::string m_name;
     std::string m_pattern;
     Cities_t m_cities;
     Indices_t m_stack;
@@ -1273,7 +1279,7 @@ void fitPointsInWindow(Cities_t& cities, const sf::Vector2u& window_size,
     }
 }
 
-void drawPath(const Indices_t& path, const Cities_t& cities, bool show_coords)
+void drawPath(const Indices_t& path, const Cities_t& cities, bool show_coords, const std::string& title)
 {
     // Get the current desktop video mode
     [[maybe_unused]] sf::VideoMode desktopMode =
@@ -1334,11 +1340,12 @@ void drawPath(const Indices_t& path, const Cities_t& cities, bool show_coords)
             }
         }
 
-        window.clear(); // Clear the window
+        window.clear(sf::Color::White); // Clear the window
+        window.setTitle(title);
 
         for (const auto& point : points) {
             sf::CircleShape marker(5); // Small circle with radius 5 pixels
-            marker.setFillColor(sf::Color::Green); // Use a contrasting color
+            marker.setFillColor(sf::Color::Blue); // Use a contrasting color
             marker.setPosition(
                 point.x,
                 point.y); // Adjust position to center the marker on the vertex
@@ -1362,7 +1369,7 @@ void drawPath(const Indices_t& path, const Cities_t& cities, bool show_coords)
             if (not city.on_stack)
                 continue;
             sf::CircleShape marker(5); // Small circle with radius 5 pixels
-            marker.setFillColor(sf::Color::Blue); // Use a contrasting color
+            marker.setFillColor(sf::Color::Green); // Use a contrasting color
             marker.setPosition(
                 city.x,
                 city.y); // Adjust position to center the marker on the vertex

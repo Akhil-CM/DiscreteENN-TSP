@@ -253,10 +253,12 @@ int runPipelineSingle(TSPInfo& info, const stdfs::path& data_path,
     utils::printInfo("Running algorithm for " + data_path.string(),
                      "runPipelineSingle");
 
+    const std::string& filename{ data_path.stem().string() };
     // -------------------------------------------
     // Create and setup Discrete ENN Solver
     // -------------------------------------------
     DiscreteENN_TSP enn_tsp;
+    enn_tsp.name() = filename;
     Cities_t& cities{ enn_tsp.cities() };
     Indices_t& path = enn_tsp.path();
 
@@ -323,11 +325,13 @@ int runPipelineSingle(TSPInfo& info, const stdfs::path& data_path,
 #if (TSP_DEBUG_PRINT > 0)
         std::cout << ("\n[Debug] (main): validatePath updateCostAll\n");
 #endif
-        const auto [idx_fail, err] = enn_tsp.updateCostAll();
-        if (err) {
-            std::cerr << "[Error] (main): updateCostAll failed at index "
-                      << idx_fail << '\n';
-            return 1;
+        if (erased.has_value() and path.size() > 2) {
+            const auto [idx_fail, err] = enn_tsp.updateCostAll();
+            if (err) {
+                std::cerr << "[Error] (main): updateCostAll failed at index "
+                          << idx_fail << '\n';
+                return 1;
+            }
         }
     }
 
@@ -364,21 +368,21 @@ int runPipelineSingle(TSPInfo& info, const stdfs::path& data_path,
     if (erased.err()) {
         std::cerr << "[Error] (main): final validatePath failed\n";
         if (draw_failed) {
-            drawPath(path, cities, show_coords);
+            drawPath(path, cities, show_coords, filename);
         }
         return 1;
     }
     if (erased.has_value()) {
         std::cerr << "[Error] (main): final validatePath removed node(s)\n";
         if (draw_failed) {
-            drawPath(path, cities, show_coords);
+            drawPath(path, cities, show_coords, filename);
         }
         return 1;
     }
     if (enn_tsp.checkIntersectPath()) {
         std::cerr << "[Error] (main): final checkIntersectPath failed\n";
         if (draw_failed) {
-            drawPath(path, cities, show_coords);
+            drawPath(path, cities, show_coords, filename);
         }
         return 1;
     }
@@ -393,7 +397,6 @@ int runPipelineSingle(TSPInfo& info, const stdfs::path& data_path,
         const auto idx_next{ enn_tsp.properIndex(idx + 1) };
         dist += getDistance(cities[path[idx]], cities[path[idx_next]]);
     }
-    const std::string& filename{ data_path.stem().string() };
     info.m_name = filename;
     info.m_distance = dist;
     info.m_points = num_cities;
@@ -407,7 +410,7 @@ int runPipelineSingle(TSPInfo& info, const stdfs::path& data_path,
     std::cout << utils::Line_Str + "\n";
 
     if (draw) {
-        drawPath(path, cities, show_coords);
+        drawPath(path, cities, show_coords, filename);
     }
     utils::printInfo("Finished algorithm for " + data_path.string(),
                      "runPipelineSingle");
