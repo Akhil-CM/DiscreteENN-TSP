@@ -8,31 +8,37 @@ import subprocess
 
 COMMAND = ""
 
+def runCommand(cmd, args):
+    process = subprocess.Popen(
+        [cmd] + args,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True
+    )
+    while True:
+        output = process.stdout.readline()
+        if output == '' and process.poll() is not None:
+            break
+        if output:
+            print(output.strip())
+            if "[Error]" in output:
+                return 1
+
+    exit_code = process.wait()
+    return exit_code
+
 def runUntilFailure(cmd, args):
     count = 0
     while True:
-        process = subprocess.Popen(
-            [cmd] + args,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE
-        )
-
-        stdout, stderr = process.communicate()
-
-        # exit_code = p.wait()
-        exit_code = process.returncode
-
+        exit_code = runCommand(cmd, args)
+        time.sleep(1)
         if exit_code != 0:
-            print(f"command: {cmd} failed.")
-            print("Exit code: ", exit_code)
-            print("Standard Output:\n", stdout.decode())
-            print("Error Output:\n", stderr.decode())
+            print(f"\nExit code {exit_code} returned")
             break
-        else:
-            count += 1
-            # print(f"Run {count} successful")
-            print(f"\rRun: {count} successful", end='', flush=True)
-            time.sleep(1)
+        count += 1
+        os.system('clear')
+        print(f"\rRun: {count} successful", end='', flush=True)
+        time.sleep(1)
 
     print(f"Completed runs: {count}")
 

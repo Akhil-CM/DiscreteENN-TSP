@@ -16,7 +16,6 @@ def runCommand(cmd, args):
 
     # stdout, stderr = process.communicate()
 
-    # # exit_code = p.wait()
     # exit_code = process.returncode
 
     # # print("Standard Output:\n", stdout.decode())

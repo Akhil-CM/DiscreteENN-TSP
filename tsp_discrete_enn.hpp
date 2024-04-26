@@ -488,7 +488,7 @@ public:
         return std::make_pair(m_timePerIterMin, m_timePerIterMax);
     }
 
-    std::size_t stackBack()
+    std::size_t stackPopBack()
     {
         const std::size_t result{ m_stack.back() };
         m_stack.pop_back();
@@ -496,7 +496,7 @@ public:
         return result;
     }
 
-    std::size_t stackAt(std::size_t index)
+    std::size_t stackPopAt(std::size_t index)
     {
         const std::size_t result{ m_stack[index] };
         m_stack.erase(m_stack.begin() + index);
@@ -506,7 +506,6 @@ public:
 
     void removeNode(std::size_t index)
     {
-        const std::string& before{m_pattern};
         const std::size_t pos{ m_path[index] };
         const std::string& node_idx_str{ "|" + std::to_string(pos) + "|" };
         std::string::size_type idx_erase = m_pattern.find(node_idx_str);
@@ -583,11 +582,15 @@ public:
     {
         const int num_nodes = m_path.size();
         if (num_nodes < 3) {
-            utils::printErr("given path size (" + std::to_string(num_nodes) + ") less than 3", "nodeCost");
-            utils::printErr("cities size (" + std::to_string(m_cities.size()) + ")", "nodeCost");
+            utils::printErr("given path size (" + std::to_string(num_nodes) +
+                                ") less than 3",
+                            "nodeCost");
+            utils::printErr("cities size (" + std::to_string(m_cities.size()) +
+                                ")",
+                            "nodeCost");
             std::cout.flush();
             std::cerr.flush();
-            throw std::runtime_error{"Invalid path size"};
+            throw std::runtime_error{ "Invalid path size" };
             return VALUE_ONE_NEG;
         }
         const auto [idx_prev, idx_next] = getNeigbhours(index);
@@ -781,69 +784,74 @@ public:
         const City& city_start{ m_cities[pos_start] };
         const City& city_end{ m_cities[pos_end] };
         std::size_t num_nodes{ m_path.size() };
-        for (std::size_t idx{ 0 }; idx != num_nodes; ++idx) {
-            if (city_start.on_stack or city_end.on_stack) {
+        for (std::size_t idx{ 0 }; idx != num_nodes;) {
+            if (city_start.on_stack or city_end.on_stack or (num_nodes == 3)) {
                 break;
             }
             const std::size_t idx_next{ properIndex(idx + 1) };
-            const bool ok_start = start != idx and start != (idx_next);
-            const bool ok_end = end != idx and end != (idx_next);
-            if (ok_start and ok_end) {
-                const std::size_t pos{ m_path[idx] };
-                const std::size_t pos_next{ m_path[idx_next] };
-                const City& city{ m_cities[pos] };
-                const City& city_next{ m_cities[pos_next] };
-                if (hasIntersection(city_start, city_end, city, city_next)) {
-                    if (sameCoords(city_start, city) or
-                        sameCoords(city_start, city_next) or
-                        sameCoords(city_end, city) or
-                        sameCoords(city_end, city_next)) {
-                        continue;
-                    } else {
-                        std::size_t idx_remove{ idx };
-                        std::size_t idx_remove_next{ idx_next };
-                        if (getDistance(city_start, city_end) >
-                            getDistance(city, city_next)) {
-                            auto [start_new, end_new] = findEdge(pos_start, pos_end);
-                            if (start_new == -1) {
-                                utils::printErr("Tried to find a non-existing edge");
-                                throw std::runtime_error{"Tried to find a non-existing edge"};
-                            }
-                            idx_remove = start_new;
-                            idx_remove_next = end_new;
-                        }
-                        if (pos_erased.has_value()) {
-                            pos_erased = std::min(
-                                *pos_erased, std::min(m_path[idx_remove],
-                                                      m_path[idx_remove_next]));
-                        } else {
-                            pos_erased = std::min(m_path[idx_remove],
-                                                  m_path[idx_remove_next]);
-                        }
-                        removeNode(idx_remove);
-                        removeNode(properIndex(idx_remove));
-                        if ((num_nodes - 2) == 2) {
-                            m_fromScratch = true;
-                            break;
-                        }
-                        const std::size_t idx_curr{ (idx_remove == num_nodes -1) ? 0 : properIndex(idx_remove) };
-                        const std::size_t idx_prev{ properIndex(int(idx_curr) -
-                                                                1) };
-                        updateCost(idx_curr);
-                        updateCost(idx_prev);
-                        if (m_rmIntersectRecurse) {
-                            auto pos_erased_tmp =
-                                removeIntersection(idx_prev, idx_curr);
-                            if (pos_erased_tmp.has_value()) {
-                                pos_erased =
-                                    std::min(*pos_erased, *pos_erased_tmp);
-                            }
-                        }
-                        num_nodes = m_path.size();
-                        idx = 0;
-                    }
+            const std::size_t pos{ m_path[idx] };
+            const std::size_t pos_next{ m_path[idx_next] };
+            const bool ok_start = pos_start != pos and pos_start != pos_next;
+            const bool ok_end = pos_end != pos and pos_end != pos_next;
+            if ((not ok_start) or (not ok_end)) {
+                ++idx;
+                continue;
+            }
+            const City& city{ m_cities[pos] };
+            const City& city_next{ m_cities[pos_next] };
+            if (not hasIntersection(city_start, city_end, city, city_next)) {
+                ++idx;
+                continue;
+            }
+            if (sameCoords(city_start, city) or
+                sameCoords(city_start, city_next) or
+                sameCoords(city_end, city) or sameCoords(city_end, city_next)) {
+                ++idx;
+                continue;
+            }
+            std::size_t idx_remove{ idx };
+            std::size_t idx_remove_next{ idx_next };
+            if (getDistance(city_start, city_end) >
+                getDistance(city, city_next)) {
+                auto [start_new, end_new] = findEdge(pos_start, pos_end);
+                if (start_new == -1) {
+                    utils::printErr("Tried to find a non-existing edge");
+                    throw std::runtime_error{
+                        "Tried to find a non-existing edge"
+                    };
+                }
+                idx_remove = start_new;
+                idx_remove_next = end_new;
+            }
+            if (pos_erased.has_value()) {
+                pos_erased =
+                    std::min(*pos_erased, std::min(m_path[idx_remove],
+                                                   m_path[idx_remove_next]));
+            } else {
+                pos_erased =
+                    std::min(m_path[idx_remove], m_path[idx_remove_next]);
+            }
+            removeNode(idx_remove);
+            removeNode(properIndex(idx_remove));
+            num_nodes -= 2;
+            if (num_nodes == 2) {
+                m_fromScratch = true;
+                break;
+            }
+            const std::size_t idx_new{ idx_remove == (num_nodes + 2) ?
+                                            0 :
+                                            properIndex(idx_remove) };
+            const std::size_t idx_new_prev{ properIndex(int(idx_new) - 1) };
+            updateCost(idx_new);
+            updateCost(idx_new_prev);
+            if (m_rmIntersectRecurse) {
+                auto pos_erased_tmp = removeIntersection(idx_new_prev, idx_new);
+                if (pos_erased_tmp.has_value()) {
+                    pos_erased = std::min(*pos_erased, *pos_erased_tmp);
+                    num_nodes = m_path.size();
                 }
             }
+            idx = 0;
         }
         return pos_erased;
     }
@@ -905,7 +913,6 @@ public:
     {
         IndexOpt_t pos_erased{ std::nullopt };
         std::size_t num_nodes = m_path.size();
-        [[maybe_unused]] int num_nodes_prev{ 0 };
         for (std::size_t idx{ 0 }; idx != num_nodes;) {
             if (m_fromScratch) {
                 break;
@@ -924,10 +931,9 @@ public:
                 continue;
             }
             removeNode(idx);
-            num_nodes_prev = num_nodes;
             --num_nodes;
             if (pos_erased.has_value()) {
-                pos_erased = (pos < (*pos_erased)) ? pos : pos_erased;
+                pos_erased = std::min(pos, *pos_erased);
             } else {
                 pos_erased = pos;
             }
@@ -943,9 +949,7 @@ public:
                 IndexOpt_t pos_erased_tmp =
                     removeIntersection(idx_prev, idx_next);
                 if (pos_erased_tmp.has_value()) {
-                    pos_erased = ((*pos_erased_tmp) < (*pos_erased)) ?
-                                     pos_erased_tmp :
-                                     pos_erased;
+                    pos_erased = std::min(*pos_erased_tmp, *pos_erased);
                 }
                 num_nodes = m_path.size();
             }
@@ -1079,11 +1083,11 @@ public:
             m_initialSize = 0.10f * num_cities;
             m_initialSize = (m_initialSize == 0) ? 3 : m_initialSize;
         }
-        const std::size_t pos{ stackBack() };
+        const std::size_t pos{ stackPopBack() };
         m_path.push_back(pos);
         m_pattern = "|" + std::to_string(pos) + "|";
         for (int idx{ 1 }; idx != m_initialSize; ++idx) {
-            const std::size_t pos{ stackBack() };
+            const std::size_t pos{ stackPopBack() };
             m_path.push_back(pos);
             m_pattern += "|" + std::to_string(pos) + "|";
         }
@@ -1100,7 +1104,7 @@ public:
         std::unordered_set<std::string> pattern_hashes;
         [[maybe_unused]] bool flip = false;
         [[maybe_unused]] bool print_pos{ false };
-        std::size_t pos{ stackBack() };
+        std::size_t pos{ stackPopBack() };
         int idx_added{ -1 };
         while (true) {
             if (m_fromScratch) {
@@ -1157,13 +1161,17 @@ public:
             const auto [idx_prev, idx_next] = getNeigbhours(idx_added);
             const std::size_t pos_added{ m_path[idx_added] },
                 pos_next{ m_path[idx_next] };
-            const auto it_erased1 = removeIntersection(idx_prev, idx_added);
+            auto it_erased1 = removeIntersection(idx_prev, idx_added);
             const auto edge_next{ findEdge(pos_added, pos_next) };
             if (edge_next.first != -1) {
-                removeIntersection(edge_next.first, edge_next.second);
+                const auto it_erased1_tmp =
+                    removeIntersection(edge_next.first, edge_next.second);
+                if (it_erased1_tmp.has_value()) {
+                    it_erased1 = it_erased1.has_value() ?
+                                     std::min(*it_erased1, *it_erased1_tmp) :
+                                     it_erased1_tmp;
+                }
             }
-            // const auto it_erased1 =
-            //     removeIntersection(m_path[idx_prev], pos, m_path[idx_next]);
             // if (checkIntersectPath()) {
             //     utils::printErr(
             //         "intersection after removeIntersection from adding node at " +
@@ -1208,15 +1216,15 @@ public:
             // }
             // if (m_fromScratch) {
             //     // const int idx_rand{ distrib(gen) };
-            //     pos = stackAt(idx_rand);
+            //     pos = stackPopAt(idx_rand);
             //     continue;
             // }
 
             // if (it_erased1.has_value() or it_erased2.has_value()) {
             //     distrib.param(distrib_t::param_type(0, m_stack.size() - 1));
             //     const int idx_rand{ distrib(gen) };
-            //     pos = stackAt(idx_rand);
-            //     pos = stackBack();
+            //     pos = stackPopAt(idx_rand);
+            //     pos = stackPopBack();
             //     continue;
             // }
             // if (it_erased1.has_value()) {
@@ -1259,7 +1267,7 @@ public:
                                      std::to_string(idx_rand) + " with city " +
                                      std::to_string(m_stack[idx_rand]),
                                  "run");
-                pos = stackAt(idx_rand);
+                pos = stackPopAt(idx_rand);
                 continue;
 #if (TSP_DEBUG_PRINT > 0)
                 std::cout << ("\n[Debug] (run): drawPath started\n");
@@ -1289,7 +1297,7 @@ public:
             //                 return false;
             //             }
 
-            pos = stackBack();
+            pos = stackPopBack();
         }
         return true;
     }
