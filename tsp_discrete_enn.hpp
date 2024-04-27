@@ -11,11 +11,11 @@
 #include <map>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <unordered_set>
 #include <cmath>
 #include <tuple>
 #include <utility>
-#include <array>
 #include <chrono>
 
 #include "utils.hpp"
@@ -87,7 +87,7 @@ typedef std::optional<std::size_t> IndexOpt_t;
 template <typename T> using IndexExp_t = utils::Expected<std::size_t, T>;
 
 void drawPath(const Indices_t& path, const Cities_t& cities, bool show_coords,
-              const std::string& title);
+              const std::string& title, float close_time = 3600.0, int highlight = -1);
 
 template <> inline bool utils::MatchItem<City>::operator()(const City& city)
 {
@@ -353,8 +353,9 @@ inline Value_t getDistance(const City& a, const City& b)
 inline Value_t insertionCost(const City& new_city, const City& cityA,
                              const City& cityB)
 {
-    return getDistance(new_city, cityA) + getDistance(new_city, cityB) -
+    const Value_t cost = getDistance(new_city, cityA) + getDistance(new_city, cityB) -
            getDistance(cityA, cityB);
+    return utils::isEqual(cost, VALUE_ZERO) ? VALUE_ZERO : cost;
 }
 
 inline double getArea(const City& a, const City& b, const City& c)
@@ -402,7 +403,7 @@ inline bool isInside(const City& city, const City& cityA, const City& cityB,
 // 2 --> Counterclockwise
 inline int getOrientation(const City& a, const City& b, const City& c)
 {
-    Value_t val = (b.y - a.y) * (c.x - b.x) - (b.x - a.x) * (c.y - b.y);
+    const Value_t val = (b.y - a.y) * (c.x - b.x) - (b.x - a.x) * (c.y - b.y);
 
     if (utils::isEqual(val, VALUE_ZERO))
         return 0;
@@ -596,9 +597,8 @@ public:
         const auto [idx_prev, idx_next] = getNeigbhours(index);
         const std::size_t pos_prev{ m_path[idx_prev] },
             pos_curr{ m_path[index] }, pos_next{ m_path[idx_next] };
-        Value_t cost = insertionCost(m_cities[pos_curr], m_cities[pos_prev],
+        const Value_t cost = insertionCost(m_cities[pos_curr], m_cities[pos_prev],
                                      m_cities[pos_next]);
-        cost = utils::isEqual(cost, VALUE_ZERO) ? VALUE_ZERO : cost;
         m_cities[pos_curr].cost = cost;
         return cost;
     }
@@ -785,7 +785,7 @@ public:
         const City& city_end{ m_cities[pos_end] };
         std::size_t num_nodes{ m_path.size() };
         for (std::size_t idx{ 0 }; idx != num_nodes;) {
-            if (city_start.on_stack or city_end.on_stack or (num_nodes == 3)) {
+            if (city_start.on_stack or city_end.on_stack or m_fromScratch) {
                 break;
             }
             const std::size_t idx_next{ properIndex(idx + 1) };
@@ -811,18 +811,19 @@ public:
             }
             std::size_t idx_remove{ idx };
             std::size_t idx_remove_next{ idx_next };
-            if (getDistance(city_start, city_end) >
-                getDistance(city, city_next)) {
-                auto [start_new, end_new] = findEdge(pos_start, pos_end);
-                if (start_new == -1) {
-                    utils::printErr("Tried to find a non-existing edge");
-                    throw std::runtime_error{
-                        "Tried to find a non-existing edge"
-                    };
-                }
-                idx_remove = start_new;
-                idx_remove_next = end_new;
-            }
+            // const Value_t dist1{ getDistance(city_start, city_end) };
+            // const Value_t dist2{ getDistance(city, city_next) };
+            // if ((not utils::isEqual(dist1, dist2)) and (dist1 > dist2)) {
+            //     auto [start_new, end_new] = findEdge(pos_start, pos_end);
+            //     if (start_new == -1) {
+            //         utils::printErr("Tried to find a non-existing edge");
+            //         throw std::runtime_error{
+            //             "Tried to find a non-existing edge"
+            //         };
+            //     }
+            //     idx_remove = start_new;
+            //     idx_remove_next = end_new;
+            // }
             if (pos_erased.has_value()) {
                 pos_erased =
                     std::min(*pos_erased, std::min(m_path[idx_remove],
@@ -838,7 +839,7 @@ public:
                 m_fromScratch = true;
                 break;
             }
-            const std::size_t idx_new{ idx_remove == (num_nodes + 2) ?
+            const std::size_t idx_new{ idx_remove_next == 0 ?
                                             0 :
                                             properIndex(idx_remove) };
             const std::size_t idx_new_prev{ properIndex(int(idx_new) - 1) };
@@ -1106,6 +1107,10 @@ public:
         [[maybe_unused]] bool print_pos{ false };
         std::size_t pos{ stackPopBack() };
         int idx_added{ -1 };
+        [[maybe_unused]] int loop_count{0};
+        [[maybe_unused]] int loop_check = 1e4;
+        [[maybe_unused]] float loop_time{10.0};
+        [[maybe_unused]] std::chrono::seconds sleep_time{10};
         while (true) {
             if (m_fromScratch) {
                 idx_added = 0;
@@ -1146,6 +1151,14 @@ public:
                 m_cities[m_path[idx_added]].print();
                 m_cities[m_path[idx_next]].print();
                 m_cities[m_path[properIndex(idx_next + 1)]].print();
+                if (loop_count > loop_check) {
+                    std::cout.flush();
+                    std::cerr.flush();
+                    std::this_thread::sleep_for( sleep_time );
+                    drawPath(m_path, m_cities, true, m_name, loop_time, m_path[idx_added]);
+                } else {
+                    ++loop_count;
+                }
             }
             // if (checkIntersectPath()) {
             //     utils::printErr("intersection after adding node at " +
@@ -1189,6 +1202,12 @@ public:
                                  std::to_string(*it_erased1) + " path size " +
                                  std::to_string(m_path.size()));
                 m_cities[*it_erased1].print();
+                if (loop_count > loop_check) {
+                    std::cout.flush();
+                    std::cerr.flush();
+                    std::this_thread::sleep_for( sleep_time );
+                    drawPath(m_path, m_cities, true, m_name, loop_time, *it_erased1);
+                }
             }
 
             const auto it_erased2 = validatePath();
@@ -1204,6 +1223,12 @@ public:
                                  std::to_string(it_erased2.value()) +
                                  " path size " + std::to_string(m_path.size()));
                 m_cities[it_erased2.value()].print();
+                if (loop_count > loop_check) {
+                    std::cout.flush();
+                    std::cerr.flush();
+                    std::this_thread::sleep_for( sleep_time );
+                    drawPath(m_path, m_cities, true, m_name, loop_time, it_erased2.value());
+                }
             }
             // if (checkIntersectPath()) {
             //     utils::printErr(
@@ -1245,7 +1270,7 @@ public:
                 break;
             }
             if (not pattern_hashes.insert(m_pattern).second) {
-                // print_pos = true;
+                print_pos = true;
                 utils::printInfo(
                     "Found repeating pattern. Randomize input node", "run");
                 utils::printInfo("Path progress " +
@@ -1397,7 +1422,7 @@ void fitPointsInWindow(Cities_t& cities, const sf::Vector2u& window_size,
 }
 
 void drawPath(const Indices_t& path, const Cities_t& cities, bool show_coords,
-              const std::string& title)
+              const std::string& title, float close_time, int highlight)
 {
     // Get the current desktop video mode
     [[maybe_unused]] sf::VideoMode desktopMode =
@@ -1437,6 +1462,7 @@ void drawPath(const Indices_t& path, const Cities_t& cities, bool show_coords,
     polygon.setOutlineThickness(2); // Line thickness
     polygon.setOutlineColor(sf::Color::Red); // Line color
 
+    sf::Clock clock;
     sf::Font font;
     font.loadFromFile("/usr/share/fonts/TTF/Roboto-Regular.ttf");
     while (window.isOpen()) {
@@ -1457,19 +1483,24 @@ void drawPath(const Indices_t& path, const Cities_t& cities, bool show_coords,
                 // window.close();
             }
         }
+        // Check the clock if 10 seconds have passed
+        if (clock.getElapsedTime().asSeconds() >= close_time) {
+            std::cout << "10 seconds have elapsed. Closing window." << std::endl;
+            window.close();
+        }
 
         window.clear(sf::Color::White); // Clear the window
         window.setTitle(title);
 
-        for (const auto& point : points) {
-            sf::CircleShape marker(5); // Small circle with radius 5 pixels
-            marker.setFillColor(sf::Color::Blue); // Use a contrasting color
-            marker.setPosition(
-                point.x,
-                point.y); // Adjust position to center the marker on the vertex
+        // for (const auto& point : points) {
+        //     sf::CircleShape marker(5); // Small circle with radius 5 pixels
+        //     marker.setFillColor(sf::Color::Blue); // Use a contrasting color
+        //     marker.setPosition(
+        //         point.x,
+        //         point.y); // Adjust position to center the marker on the vertex
 
-            window.draw(marker);
-        }
+        //     window.draw(marker);
+        // }
         for (const City& city : cities_copy) {
             if (show_coords) {
                 sf::Text label;
@@ -1477,17 +1508,25 @@ void drawPath(const Indices_t& path, const Cities_t& cities, bool show_coords,
                 label.setString(std::to_string(
                     city.id)); // Set the point's ID as the label text
                 label.setCharacterSize(14); // Set the character size
-                label.setFillColor(sf::Color::White); // Set the text color
+                label.setFillColor(sf::Color::Black); // Set the text color
+                if (city.id == highlight) {
+                    label.setFillColor(sf::Color::Magenta);
+                }
                 label.setPosition(city.x + 10,
                                   city.y -
                                       10); // Position the label near the marker
                 window.draw(label); // Draw the label
             }
 
-            if (not city.on_stack)
-                continue;
             sf::CircleShape marker(5); // Small circle with radius 5 pixels
-            marker.setFillColor(sf::Color::Green); // Use a contrasting color
+            if (city.on_stack) {
+                marker.setFillColor(sf::Color::Green); // Use a contrasting color
+            } else {
+                marker.setFillColor(sf::Color::Blue); // Use a contrasting color
+            }
+            if (city.id == highlight) {
+                marker.setFillColor(sf::Color::Magenta);
+            }
             marker.setPosition(
                 city.x,
                 city.y); // Adjust position to center the marker on the vertex

@@ -15,12 +15,16 @@ def runCommand(cmd, args):
         stderr=subprocess.STDOUT,
         text=True
     )
+    command_in_loop = 0
     while True:
+        # if command_in_loop > 1e6:
+        #     return 1
         output = process.stdout.readline()
         if output == '' and process.poll() is not None:
             break
         if output:
             print(output.strip())
+            # command_in_loop += 1
             if "[Error]" in output:
                 return 1
 
@@ -30,6 +34,7 @@ def runCommand(cmd, args):
 def runUntilFailure(cmd, args):
     count = 0
     while True:
+        print()
         exit_code = runCommand(cmd, args)
         time.sleep(1)
         if exit_code != 0:
@@ -38,7 +43,7 @@ def runUntilFailure(cmd, args):
         count += 1
         os.system('clear')
         print(f"\rRun: {count} successful", end='', flush=True)
-        time.sleep(1)
+        time.sleep(5)
 
     print(f"Completed runs: {count}")
 
