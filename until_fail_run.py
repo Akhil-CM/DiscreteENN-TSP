@@ -43,7 +43,7 @@ def runUntilFailure(cmd, args):
         count += 1
         os.system('clear')
         print(f"\rRun: {count} successful", end='', flush=True)
-        time.sleep(5)
+        time.sleep(1)
 
     print(f"Completed runs: {count}")
 
