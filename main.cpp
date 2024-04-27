@@ -173,7 +173,7 @@ int main(int argc, char** argv)
     }
     table_file.close();
     std::ofstream csv_file{ "DiscreteENN_TSP_table.csv" };
-    csv_file << table_header << std::endl;
+    csv_file << utils::subtituteStr(table_header, "\t", ",") << std::endl;
     for (auto it{ optimal_infos.begin() }; it != optimal_infos.end(); ++it) {
         TSPInfo& opt_info{ *it };
         int info_pos{ utils::vectFind(opt_info, infos) };

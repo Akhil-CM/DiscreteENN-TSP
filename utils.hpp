@@ -50,26 +50,20 @@ inline void printNewLine(int count = 1, std::ostream& stream = std::cout)
     stream << newline_str;
 }
 
-inline std::string subtituteStr(const std::string& text,
+inline std::string subtituteStr(std::string text,
                                 const std::string& pattern,
                                 const std::string& pattern_new)
 {
     typedef std::string::size_type ssize_type;
     const ssize_type n_old = pattern.length();
     const ssize_type n_new = pattern_new.length();
-    ssize_type pos_begin = 0;
-    ssize_type pos_found = text.find(pattern, pos_begin);
-    if (pos_found == std::string::npos) {
-        return text;
-    }
-    std::string text_new{ text };
-    do {
-        text_new = text_new.substr(0, pos_found) + pattern_new +
-                   text_new.substr(pos_found + n_old);
-        pos_begin = pos_found + n_new;
-        pos_found = text_new.find(pattern, pos_begin);
-    } while (pos_found != std::string::npos);
-    return text_new;
+    ssize_type pos_found = text.find(pattern, 0);
+    while (pos_found != std::string::npos) {
+        text = text.substr(0, pos_found) + pattern_new +
+                   text.substr(pos_found + n_old);
+        pos_found = text.find(pattern, pos_found + n_new);
+    } ;
+    return text;
 }
 
 inline void printInfo(const std::string& msg, const std::string& fname = "")
