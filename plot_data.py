@@ -45,25 +45,23 @@ def plotData(data_file, use_pandas: bool, sequence: bool):
         x = np.arange(1, len(x_labels) + 1)
 
     plt.figure(figsize=(10, 10))  # Optional: Adjusts the figure size
-    plt.subplot(131)
+    plt.subplot(311)
     plt.plot(x, y1, color=color, marker='o', linestyle='-.')  # Adjust markers and lines as needed
     plt.title(f"Time ({time_str}) / N")
-    plt.xlabel("Cities")  # Adjust with actual column name or description
     # plt.ylabel(f"Time ({time_str})")  # Adjust with actual column name or description
     plt.grid(show_grid)  # Optional: Adds a grid
     if sequence:
         axis = plt.gca()
-        plt.xticks(x, labels = x_labels, rotation='vertical')
-    plt.subplot(132)
+        plt.xticks(x)
+    plt.subplot(312)
     plt.plot(x, y2, color=color, marker='o', linestyle='-.')  # Adjust markers and lines as needed
     plt.title(f"Time ({time_str}) / $N^2$")
-    plt.xlabel('Cities')  # Adjust with actual column name or description
     # plt.ylabel(f"Time ({time_str})")  # Adjust with actual column name or description
     plt.grid(show_grid)  # Optional: Adds a grid
     if sequence:
         axis = plt.gca()
-        plt.xticks(x, labels = x_labels, rotation='vertical')
-    plt.subplot(133)
+        plt.xticks(x)
+    plt.subplot(313)
     plt.plot(x, y3, color=color, marker='o', linestyle='-.')  # Adjust markers and lines as needed
     plt.title(f"Time ({time_str}) / $N \cdot log(N)$")
     plt.xlabel('Cities')  # Adjust with actual column name or description
@@ -76,6 +74,7 @@ def plotData(data_file, use_pandas: bool, sequence: bool):
         plt.suptitle("Data from current implementation")
     else:
         plt.suptitle("Data from paper")
+    plt.tight_layout()
     plt.show()
 
 def plotDataBoth(data_file1, data_file2, sequence: bool):
@@ -112,43 +111,50 @@ def plotDataBoth(data_file1, data_file2, sequence: bool):
     y2_2 = y2/(x2*x2)
     y2_3 = y2/(x2*np.log(x2))
 
-    plt.figure(figsize=(10, 10))  # Optional: Adjusts the figure size
+    fig, ax = plt.subplots(3, 1, figsize=(10, 10))  # Optional: Adjusts the figure size
     print(f"{x}\n{y1_1}")
     print(f"{x}\n{y2_1}")
-    plt.subplot(131)
-    plt.plot(x, y1_1, color=color1, marker='o', linestyle='-.')  # Adjust markers and lines as needed
-    plt.plot(x, y2_1, color=color2, marker='o', linestyle='-.')  # Adjust markers and lines as needed
-    plt.title(f"Time ({time_str}) / N")
-    plt.xlabel("Cities")  # Adjust with actual column name or description
+    # plt.subplot(311)
+    ax[0].plot(x, y1_1, color=color1, label="Paper", marker='o', linestyle='-.')  # Adjust markers and lines as needed
+    ax[0].plot(x, y2_1, color=color2, label="New implementation", marker='o', linestyle='-.')  # Adjust markers and lines as needed
+    ax[0].set_title(f"Time ({time_str}) / N")
     # plt.ylabel(f"Time ({time_str})")  # Adjust with actual column name or description
     plt.grid(show_grid)  # Optional: Adds a grid
     if sequence:
         axis = plt.gca()
-        plt.xticks(x, labels = x_labels, rotation='vertical')
+        plt.xticks(x)
     print(f"{x}\n{y1_2}")
     print(f"{x}\n{y2_2}")
-    plt.subplot(132)
-    plt.plot(x, y1_2, color=color1, marker='o', linestyle='-.')  # Adjust markers and lines as needed
-    plt.plot(x, y2_2, color=color2, marker='o', linestyle='-.')  # Adjust markers and lines as needed
-    plt.title(f"Time ({time_str}) / $N^2$")
-    plt.xlabel('Cities')  # Adjust with actual column name or description
+    # plt.subplot(312)
+    ax[1].plot(x, y1_2, color=color1, marker='o', linestyle='-.')  # Adjust markers and lines as needed
+    ax[1].plot(x, y2_2, color=color2, marker='o', linestyle='-.')  # Adjust markers and lines as needed
+    ax[1].set_title(f"Time ({time_str}) / $N^2$")
     # plt.ylabel(f"Time ({time_str})")  # Adjust with actual column name or description
     plt.grid(show_grid)  # Optional: Adds a grid
     if sequence:
         axis = plt.gca()
-        plt.xticks(x, labels = x_labels, rotation='vertical')
+        plt.xticks(x)
     print(f"{x}\n{y1_3}")
     print(f"{x}\n{y2_3}")
-    plt.subplot(133)
-    plt.plot(x, y1_3, color=color1, marker='o', linestyle='-.')  # Adjust markers and lines as needed
-    plt.plot(x, y2_3, color=color2, marker='o', linestyle='-.')  # Adjust markers and lines as needed
-    plt.title(f"Time ({time_str}) / $N \cdot log(N)$")
+    # plt.subplot(313)
+    ax[2].plot(x, y1_3, color=color1, marker='o', linestyle='-.')  # Adjust markers and lines as needed
+    ax[2].plot(x, y2_3, color=color2, marker='o', linestyle='-.')  # Adjust markers and lines as needed
+    ax[2].set_title(f"Time ({time_str}) / $N \cdot log(N)$")
     plt.xlabel('Cities')  # Adjust with actual column name or description
     # plt.ylabel(f"Time ({time_str})")  # Adjust with actual column name or description
     plt.grid(show_grid)  # Optional: Adds a grid
     if sequence:
         axis = plt.gca()
         plt.xticks(x, labels = x_labels, rotation='vertical')
+    # plt.suptitle("Paper vs New implementation")
+    # lines_labels = [axis.get_legend_handles_labels() for axis in fig.axes]
+    # lines, labels = [sum(lol, []) for lol in zip(*lines_labels)]
+    # print(f"lines:\n{lines}\nlabels:\n{labels}")
+    # fig.legend(lines, labels)
+    handles, labels = ax[0].get_legend_handles_labels()
+    print(f"handles:\n{handles}\nlabels:\n{labels}")
+    fig.legend(handles, labels, loc='upper right', ncol=2)
+    plt.tight_layout()
     plt.show()
 
 if __name__ == "__main__":
