@@ -1,17 +1,19 @@
 // -*- C++ -*-
 #include "tsp_discrete_enn.hpp"
 #include "utils.hpp"
-#include <cstddef>
+#include <fstream>
 
 namespace stdfs = std::filesystem;
 
-const std::string& Data_Optimal_Filename{ "./tsp_optimal_distances.csv" };
+const std::string& Data_Optimal_Filename{ "Data/tsp_optimal_distances.csv" };
 const stdfs::path Data_Optimal_Path{ utils::getCleanPath(
     stdfs::current_path() / stdfs::path(Data_Optimal_Filename)) };
 
 const std::string& Data_Dir{ "Data/ALL_tsp" };
 
 const std::string& Data_Filename_berlin{ "berlin52.tsp" };
+
+const stdfs::path& Output_Path{ "Output" };
 
 int runPipelineSingle(TSPInfo& info, const stdfs::path& data_path,
                       std::default_random_engine& rng, bool draw,
@@ -149,7 +151,7 @@ int main(int argc, char** argv)
                          std::to_string(info.m_distance) + "\t" +
                          std::to_string(opt_info.m_distance));
     }
-    std::ofstream table_file{ "DiscreteENN_TSP_table.txt" };
+    std::ofstream table_file{ Output_Path/"DiscreteENN_TSP_table.txt" };
     table_file << table_header << std::endl;
     for (auto it{ optimal_infos.begin() }; it != optimal_infos.end(); ++it) {
         TSPInfo& opt_info{ *it };
@@ -172,7 +174,7 @@ int main(int argc, char** argv)
                    << std::endl;
     }
     table_file.close();
-    std::ofstream csv_file{ "DiscreteENN_TSP_table.csv" };
+    std::ofstream csv_file{ Output_Path/"DiscreteENN_TSP_table.csv" };
     csv_file << utils::subtituteStr(table_header, "\t", ",") << std::endl;
     for (auto it{ optimal_infos.begin() }; it != optimal_infos.end(); ++it) {
         TSPInfo& opt_info{ *it };
@@ -285,14 +287,14 @@ int runPipelineSingle(TSPInfo& info, const stdfs::path& data_path,
                 break;
         }
         std::printf(
-            "[Info]: Total number of layers expected %d (power of 4 : %d) for number of cities %d.\n",
+            "[Info] (runPipelineSingle): Total number of layers expected %d (power of 4 : %d) for number of cities %d.\n",
             layers, layers_val, num_cities);
 
         // -------------------------------------------
         // Construct Stack
         // -------------------------------------------
         createStack(cities_tmp, cities, layers);
-        std::printf("[Info]: Total number of layers created %d.\n", layers);
+        std::printf("[Info] (runPipelineSingle): Total number of layers created %d.\n", layers);
     }
     const std::size_t num_cities = cities.size();
 
@@ -314,21 +316,21 @@ int runPipelineSingle(TSPInfo& info, const stdfs::path& data_path,
 
     {
 #if (TSP_DEBUG_PRINT > 0)
-        std::cout << ("\n[Debug] (main): validatePath\n");
+        std::cout << ("\n[Debug] (runPipelineSingle): validatePath\n");
 #endif
         IndexExp_t<bool> erased = enn_tsp.validatePath();
         if (erased.err()) {
-            std::cerr << "[Error] (main): validatePath failed\n";
+            std::cerr << "[Error] (runPipelineSingle): validatePath failed\n";
             return 1;
         }
 
 #if (TSP_DEBUG_PRINT > 0)
-        std::cout << ("\n[Debug] (main): validatePath updateCostAll\n");
+        std::cout << ("\n[Debug] (runPipelineSingle): validatePath updateCostAll\n");
 #endif
         if (erased.has_value() and path.size() > 2) {
             const auto [idx_fail, err] = enn_tsp.updateCostAll();
             if (err) {
-                std::cerr << "[Error] (main): updateCostAll failed at index "
+                std::cerr << "[Error] (runPipelineSingle): updateCostAll failed at index "
                           << idx_fail << '\n';
                 return 1;
             }
@@ -338,21 +340,21 @@ int runPipelineSingle(TSPInfo& info, const stdfs::path& data_path,
     // -------------------------------------------
     // Run Discrete ENN
     // -------------------------------------------
-    std::cout << ("\n[Info] (main): Run Discrete ENN Algorithm\n");
+    std::cout << ("\n[Info] (runPipelineSingle): Run Discrete ENN Algorithm\n");
     TimePoint_t start_time = std::chrono::steady_clock::now();
     const bool success = enn_tsp.run(rng);
     TimePoint_t end_time = std::chrono::steady_clock::now();
     if (not success) {
-        std::cerr << "[Error] (main): Discrete ENN run failed.\n";
+        std::cerr << "[Error] (runPipelineSingle): Discrete ENN run failed.\n";
         return 1;
     }
     auto delta = std::chrono::duration_cast<TimeUnit_t>(end_time - start_time);
     const auto duration = delta.count();
     std::cout << "\n" + utils::Line_Str + "\n";
-    std::cout << "[Info] (main): Algorithm finished in " << duration
+    std::cout << "[Info] (runPipelineSingle): Algorithm finished in " << duration
               << time_unit + "\n";
     std::cout << utils::Line_Str + "\n";
-    assert("[Error] (main): path size not equal to number of cities" &&
+    assert("[Error] (runPipelineSingle): path size not equal to number of cities" &&
            (path.size() == num_cities));
 
     const std::size_t num_nodes = path.size();
@@ -360,27 +362,27 @@ int runPipelineSingle(TSPInfo& info, const stdfs::path& data_path,
         const auto [valid, err] = enn_tsp.validateNode(idx);
         if (err) {
             std::cerr
-                << "[Error] (main): Algoirthm has not found the optimal path\n";
+                << "[Error] (runPipelineSingle): Algoirthm has not found the optimal path\n";
             return 1;
         }
     }
     IndexExp_t<bool> erased = enn_tsp.validatePath();
     if (erased.err()) {
-        std::cerr << "[Error] (main): final validatePath failed\n";
+        std::cerr << "[Error] (runPipelineSingle): final validatePath failed\n";
         if (draw_failed) {
             drawPath(path, cities, show_coords, filename);
         }
         return 1;
     }
     if (erased.has_value()) {
-        std::cerr << "[Error] (main): final validatePath removed node(s)\n";
+        std::cerr << "[Error] (runPipelineSingle): final validatePath removed node(s)\n";
         if (draw_failed) {
             drawPath(path, cities, show_coords, filename);
         }
         return 1;
     }
     if (enn_tsp.checkIntersectPath()) {
-        std::cerr << "[Error] (main): final checkIntersectPath failed\n";
+        std::cerr << "[Error] (runPipelineSingle): final checkIntersectPath failed\n";
         if (draw_failed) {
             drawPath(path, cities, show_coords, filename);
         }
@@ -390,7 +392,7 @@ int runPipelineSingle(TSPInfo& info, const stdfs::path& data_path,
     // -------------------------------------------
     // Show results
     // -------------------------------------------
-    std::cout << "[Info]: Print results\n";
+    std::cout << "[Info] (runPipelineSingle): Print results\n";
     Value_t dist{ 0.0 };
     for (std::size_t idx{ 0 }; idx != num_nodes; ++idx) {
         // path[idx]->print();
@@ -406,7 +408,7 @@ int runPipelineSingle(TSPInfo& info, const stdfs::path& data_path,
     // info.m_timePerIter = enn_tsp.timePerCity();
     // std::tie(info.m_timePerCityMin, info.m_timePerCityMax) = enn_tsp.timePerCityMinMax();
     std::cout << "\n" + utils::Line_Str + "\n";
-    std::cout << "[Info]: Total distance is : " << dist << '\n';
+    std::cout << "[Info] (runPipelineSingle): Total distance is : " << dist << '\n';
     std::cout << utils::Line_Str + "\n";
 
     if (draw) {

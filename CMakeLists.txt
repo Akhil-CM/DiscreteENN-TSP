@@ -1,6 +1,17 @@
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 3.15)
 # set the project name
-project(DiscreteENN_TSP VERSION 0.1)
+project(DiscreteENN_TSP VERSION 1.0
+    DESCRIPTION
+    "A fast algorithm to find reasonable solutions to TSP"
+    LANGUAGES CXX)
+
+### Require out-of-source builds
+file(TO_CMAKE_PATH "${PROJECT_BINARY_DIR}/CMakeLists.txt" LOC_PATH)
+if(EXISTS "${LOC_PATH}")
+    message(FATAL_ERROR "You cannot build in a source directory (or any directory with "
+                        "CMakeLists.txt file). Please make a build subdirectory. Feel free to "
+                        "remove CMakeCache.txt and CMakeFiles.")
+endif()
 
 # specify the C++ standard
 set(CMAKE_CXX_STANDARD 17)
@@ -22,31 +33,39 @@ else()
     add_compile_options(-Wall -Wextra -pedantic)
 endif()
 
-include_directories( "${PROJECT_SOURCE_DIR}/include" )
+file(GLOB HEADER_LIST CONFIGURE_DEPENDS
+    "${PROJECT_SOURCE_DIR}/include/*.hpp")
 
-# add_library(utilities OBJECT "${PROJECT_SOURCE_DIR}/src/utilities.cxx")
-
-# add the executable
-add_executable(enn_tsp "${PROJECT_SOURCE_DIR}/main.cpp" "${PROJECT_SOURCE_DIR}/tsp_discrete_enn.hpp" "${PROJECT_SOURCE_DIR}/utils.hpp")
-
-# Set compiler options for different build types
-target_compile_options(enn_tsp PRIVATE
-    $<$<CONFIG:Release>:-O3;-march=native;-mtune=native>
-    $<$<CONFIG:Debug>:-fsanitize=address,undefined,float-divide-by-zero,nullability;-fno-omit-frame-pointer;-Og;-g>
+add_library(tsp_enn_lib)
+target_sources(tsp_enn_lib
+  PRIVATE
+    "${PROJECT_SOURCE_DIR}/src/tsp_discrete_enn.cxx"
+  PUBLIC
+    "${HEADER_LIST}"
 )
 
-# Link options, needed specifically for the sanitizer in Debug mode
-target_link_options(enn_tsp PRIVATE
-    $<$<CONFIG:Debug>:-fsanitize=address,undefined,float-divide-by-zero,nullability;-fno-omit-frame-pointer>
-)
-
-target_link_libraries(enn_tsp PRIVATE
+target_include_directories(tsp_enn_lib PUBLIC "${PROJECT_SOURCE_DIR}/include")
+target_link_libraries(tsp_enn_lib PRIVATE
 		      sfml-graphics
                       sfml-window
                       sfml-system
 		      )
 
-install(TARGETS enn_tsp DESTINATION "${PROJECT_SOURCE_DIR}/bin")
+add_executable(tsp_enn "${PROJECT_SOURCE_DIR}/src/main.cpp" "${HEADER_LIST}")
+target_include_directories(tsp_enn PUBLIC "${PROJECT_SOURCE_DIR}/include")
+
+# target_compile_features(enn_tsp PRIVATE cxx_std_17)
+target_compile_options(tsp_enn PRIVATE
+    $<$<CONFIG:Release>:-O3;-march=native;-mtune=native>
+    $<$<CONFIG:Debug>:-fsanitize=address,undefined,float-divide-by-zero,nullability;-fno-omit-frame-pointer;-Og;-g>
+)
+target_link_options(tsp_enn PRIVATE
+    $<$<CONFIG:Debug>:-fsanitize=address,undefined,float-divide-by-zero,nullability;-fno-omit-frame-pointer>
+)
+
+target_link_libraries(tsp_enn PRIVATE tsp_enn_lib)
+
+install(TARGETS tsp_enn DESTINATION "${PROJECT_SOURCE_DIR}/bin")
 
 # Copy to source directory
 add_custom_target(

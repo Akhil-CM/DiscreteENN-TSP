@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-EXE="enn_tsp"
+EXE="tsp_enn"
 CONFIG="Debug"
 
 if [[ "$1" == "run" ]]; then
