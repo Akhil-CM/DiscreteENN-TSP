@@ -4,8 +4,7 @@
 
 #define TSP_DRAW
 
-#define TSP_DEBUG_PRINT 1
-#define TSP_DEBUG_CHECK 0
+#define TSP_DEBUG_PRINT 0
 #define TSP_ERROR 0
 
 #define TSP_TIME 2
@@ -23,7 +22,7 @@
 #include <utility>
 #include <chrono>
 
-#if TSP_DEBUG_PRINT > 1
+#if TSP_DEBUG_PRINT > 0
 #include <thread>
 #endif
 
@@ -59,7 +58,7 @@ constexpr Index_t Num_Nodes_Initial{ 10 };
 constexpr bool Validation_Intersection{ true };
 constexpr bool Intersection_Recursive{ true };
 
-#if TSP_DEBUG_PRINT > 1
+#if TSP_DEBUG_PRINT > 0
 inline bool global_print{ false };
 #endif
 
@@ -367,7 +366,7 @@ public:
             const Value_t cost_current{ insertionCost(city, m_cities[pos],
                                                       m_cities[pos_next]) };
             if (cost_current < cost) {
-#if TSP_DEBUG_PRINT > 1
+#if TSP_DEBUG_PRINT > 0
                 if (global_print) {
                     utils::printInfo("cost_current " +
                                          std::to_string(cost_current) +
@@ -553,6 +552,7 @@ public:
 
     IndexExp_t<bool> validatePath()
     {
+        IndexOpt_t pos_erased{ std::nullopt };
         Index_t num_nodes = m_path.size();
 #if TSP_ERROR > 0
         if (num_nodes < 3) {
@@ -563,10 +563,9 @@ public:
 #if TSP_ERROR > 1
             throw std::runtime_error{ "Invalid path size" };
 #endif
-            return std::make_pair(-1, true);
+            return IndexExp_t<bool>{ pos_erased, true };
         }
 #endif
-        IndexOpt_t pos_erased{ std::nullopt };
         for (Index_t idx{ 0 }; idx != num_nodes;) {
             if (m_fromScratch) {
                 break;
@@ -717,7 +716,7 @@ public:
                 ++idx;
                 continue;
             }
-#if TSP_DEBUG_PRINT > 1
+#if TSP_DEBUG_PRINT > 0
             if (global_print) {
                 const auto [start_tmp, end_tmp] = findEdge(pos_start, pos_end);
                 utils::printInfoFmt("hasIntersection true for the edges (%u, %u) and (%u, %u)", "removeIntersectionEdge", start_tmp, end_tmp, idx, idx_next);
@@ -886,7 +885,7 @@ public:
             const City& city{ m_cities[pos] };
             const Value_t cost{ insertionCost(city, city_start, city_end) };
             if (cost < city.cost) {
-#if TSP_DEBUG_PRINT > 1
+#if TSP_DEBUG_PRINT > 0
                 if (global_print) {
                     const auto [start_tmp, end_tmp] = findEdge(pos_start, pos_end);
                     utils::printInfoFmt("validation failed for the node %u with edge (%u, %u)", "validateWithEdge", idx, start_tmp, end_tmp);
@@ -1119,7 +1118,7 @@ public:
 
     bool run(std::default_random_engine& gen)
     {
-#if TSP_DEBUG_PRINT > 1
+#if TSP_DEBUG_PRINT > 0
         bool print_pos{ false };
         int loop_count{ 0 };
         int loop_check = 1e4;
@@ -1158,23 +1157,23 @@ public:
                 return false;
             }
 
-#if TSP_DEBUG_PRINT > 1
+#if TSP_DEBUG_PRINT > 0
             if (print_pos) {
-                const auto [idx_prev, idx_next] = getNeigbhours(idx_added);
-                utils::printInfo(
-                    "Adding node for city " + std::to_string(pos) + " at " +
-                    std::to_string(idx_added) + " with neighbours (" +
-                    std::to_string(idx_prev) + ", " + std::to_string(idx_next) +
-                    ")" + " having cities (" +
-                    std::to_string(m_path[idx_prev]) + ", " +
-                    std::to_string(m_path[idx_next]) + ")" + " path size " +
-                    std::to_string(m_path.size()));
-                m_cities[m_path[properIndex(int(idx_prev) - 1)]].print();
-                m_cities[m_path[idx_prev]].print();
-                m_cities[m_path[idx_added]].print();
-                m_cities[m_path[idx_next]].print();
-                m_cities[m_path[properIndex(idx_next + 1)]].print();
                 if (loop_count > loop_check) {
+                    const auto [idx_prev, idx_next] = getNeigbhours(idx_added);
+                    utils::printInfo(
+                        "Adding node for city " + std::to_string(pos) + " at " +
+                        std::to_string(idx_added) + " with neighbours (" +
+                        std::to_string(idx_prev) + ", " + std::to_string(idx_next) +
+                        ")" + " having cities (" +
+                        std::to_string(m_path[idx_prev]) + ", " +
+                        std::to_string(m_path[idx_next]) + ")" + " path size " +
+                        std::to_string(m_path.size()));
+                    m_cities[m_path[properIndex(int(idx_prev) - 1)]].print();
+                    m_cities[m_path[idx_prev]].print();
+                    m_cities[m_path[idx_added]].print();
+                    m_cities[m_path[idx_next]].print();
+                    m_cities[m_path[properIndex(idx_next + 1)]].print();
                     std::cout.flush();
                     std::cerr.flush();
                     std::this_thread::sleep_for(sleep_time);
@@ -1212,7 +1211,7 @@ public:
                 }
             }
 
-#if TSP_DEBUG_PRINT > 2
+#if TSP_DEBUG_PRINT > 1
             if (checkIntersectPath()) {
                 utils::printErr(
                     "intersection after removeIntersection from adding node at " +
@@ -1223,7 +1222,7 @@ public:
             }
 #endif
 
-#if TSP_DEBUG_PRINT > 2
+#if TSP_DEBUG_PRINT > 1
             const auto it_erased = validatePath();
             if (it_erased.err()) {
                 utils::printErr("validatePath failed", "run");
@@ -1243,7 +1242,7 @@ public:
             }
 #endif
 
-#if TSP_DEBUG_PRINT > 1
+#if TSP_DEBUG_PRINT > 0
             if (print_pos and erased1.has_value()) {
                 if (loop_count > loop_check) {
                     global_print = true;
@@ -1270,7 +1269,12 @@ public:
                 break;
             }
             if (not pattern_hashes.insert(m_pattern).second) {
-#if TSP_DEBUG_PRINT > 1
+                distrib.param(distrib_t::param_type(0, stack_size - 1));
+                const int idx_rand{ distrib(gen) };
+                // const int idx_rand = 0;
+                pos = stackPopAt(idx_rand);
+
+#if TSP_DEBUG_PRINT > 0
                 print_pos = true;
                 utils::printInfo(
                     "Found repeating pattern. Randomize input node", "run");
@@ -1278,18 +1282,12 @@ public:
                                      std::to_string(m_path.size()) + "/" +
                                      std::to_string(num_cities),
                                  "run");
-#endif
-
-                distrib.param(distrib_t::param_type(0, stack_size - 1));
-                const int idx_rand{ distrib(gen) };
-                // const int idx_rand = 0;
-                pos = stackPopAt(idx_rand);
-
-#if TSP_DEBUG_PRINT > 1
-                utils::printInfo("New starting point " +
-                                     std::to_string(idx_rand) + " with city " +
-                                     std::to_string(pos),
-                                 "run");
+                // utils::printInfo("New starting point " +
+                //                      std::to_string(idx_rand) + " with city " +
+                //                      std::to_string(pos),
+                //                  "run");
+                utils::printInfoFmt("New starting point %i with city %u",
+                                 "run", idx_rand, pos);
 #endif
                 continue;
             }

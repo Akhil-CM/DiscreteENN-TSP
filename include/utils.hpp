@@ -74,6 +74,51 @@ inline std::string subtituteStr(std::string text,
     return text;
 }
 
+template<typename... Args>
+inline std::string stringFmt(const std::string& fmt, Args... args)
+{
+    const int size = std::snprintf(nullptr, 0, fmt.c_str(), args...);
+    if (size < 0) {
+        throw std::runtime_error{ "[Error] (stringFmt): during formatting with:\n" + fmt };
+    }
+    auto buf = std::make_unique<char[]>(size + 1);
+    std::snprintf(buf.get(), size + 1, fmt.c_str(), args...);
+    std::string result{buf.get(), static_cast<std::string::size_type>(size)};
+    return result;
+}
+
+template<typename... Args>
+inline void printInfoFmt(const std::string& fmt, const std::string& fname, Args... args)
+{
+    std::string msg{ stringFmt(fmt, args...) };
+    bool split_newlines = (msg.find('\n') != std::string::npos);
+    std::string prefix{ "[Info]: " };
+    std::cout << Line_Str << '\n';
+    if (not fname.empty()) {
+        prefix = "\n[Info] (" + fname + "): ";
+    }
+    std::cout << prefix;
+    std::cout << (split_newlines ? subtituteStr(msg, "\n", "\n" + prefix) : msg)
+              << '\n';
+    std::cout << Line_Str << '\n';
+}
+
+template<typename... Args>
+inline void printErrFmt(const std::string& fmt, const std::string& fname, Args... args)
+{
+    std::string msg{ stringFmt(fmt, args...) };
+    bool split_newlines = (msg.find('\n') != std::string::npos);
+    std::string prefix{ "[Error]: " };
+    std::cerr << Line_Str << '\n';
+    if (not fname.empty()) {
+        prefix = "\n[Error] (" + fname + "): ";
+    }
+    std::cerr << prefix;
+    std::cerr << (split_newlines ? subtituteStr(msg, "\n", "\n" + prefix) : msg)
+              << '\n';
+    std::cerr << Line_Str << '\n';
+}
+
 inline void printInfo(const std::string& msg, const std::string& fname = "")
 {
     bool split_newlines = (msg.find('\n') != std::string::npos);
@@ -97,31 +142,9 @@ inline void printErr(const std::string& msg, const std::string& fname = "")
         prefix = "\n[Error] (" + fname + "): ";
     }
     std::cerr << prefix;
-    std::cerr << (split_newlines ? subtituteStr(msg, "\n", prefix) : msg)
+    std::cerr << (split_newlines ? subtituteStr(msg, "\n", "\n" + prefix) : msg)
               << '\n';
     std::cerr << Line_Str << '\n';
-}
-
-template<typename... Args>
-inline void printInfoFmt(const std::string& fmt, const std::string& fname, Args... args)
-{
-    const std::size_t msg_len{ fmt.length() * 10 };
-    std::string msg(msg_len, 'a');
-    const int cutoff = std::snprintf(msg.data(), msg.length(), fmt.c_str(), args...);
-    if (cutoff < 0 or cutoff >= msg_len) {
-        utils::printErr("Coud not produce formatted string. cutoff : " + std::to_string(cutoff), "printInfoFmt");
-    }
-    msg = msg.substr(0, cutoff);
-    bool split_newlines = (msg.find('\n') != std::string::npos);
-    std::string prefix{ "[Info]: " };
-    std::cout << Line_Str << '\n';
-    if (not fname.empty()) {
-        prefix = "\n[Info] (" + fname + "): ";
-    }
-    std::cout << prefix;
-    std::cout << (split_newlines ? subtituteStr(msg, "\n", "\n" + prefix) : msg)
-              << '\n';
-    std::cout << Line_Str << '\n';
 }
 
 template <typename F,
