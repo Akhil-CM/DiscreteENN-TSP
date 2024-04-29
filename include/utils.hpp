@@ -31,6 +31,13 @@ inline float getRound2(float value)
     return (round2/100.f);
 }
 
+inline float getRound3(float value)
+{
+    const float round1{ std::round(value * 10000.f) };
+    const float round2{ std::round(round1/10.f) };
+    return (round2/1000.f);
+}
+
 inline float getRoundN(float value, int places)
 {
     const float round1 = std::round(value * std::pow(10.f, places+1));

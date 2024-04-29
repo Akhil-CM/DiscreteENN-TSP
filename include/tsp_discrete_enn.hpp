@@ -366,8 +366,7 @@ public:
             const Index_t pos_next{ m_path[idx_next] };
             const Value_t cost_current{ insertionCost(city, m_cities[pos],
                                                       m_cities[pos_next]) };
-            const bool not_equal{ not utils::isEqual(cost_current, cost) };
-            if (not_equal and (cost_current < cost)) {
+            if (cost_current < cost) {
 #if TSP_DEBUG_PRINT > 1
                 if (global_print) {
                     utils::printInfo("cost_current " +
@@ -886,8 +885,7 @@ public:
             }
             const City& city{ m_cities[pos] };
             const Value_t cost{ insertionCost(city, city_start, city_end) };
-            const bool not_equal{ not utils::isEqual(cost, city.cost) };
-            if (not_equal and (cost < city.cost)) {
+            if (cost < city.cost) {
 #if TSP_DEBUG_PRINT > 1
                 if (global_print) {
                     const auto [start_tmp, end_tmp] = findEdge(pos_start, pos_end);

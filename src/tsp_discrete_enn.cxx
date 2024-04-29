@@ -183,7 +183,7 @@ Value_t insertionCost(const City& new_city, const City& cityA,
     const Value_t cost = getDistance(new_city, cityA) +
                          getDistance(new_city, cityB) -
                          getDistance(cityA, cityB);
-    return utils::isEqual(cost, VALUE_ZERO) ? VALUE_ZERO : cost;
+    return utils::getRound3(cost);
 }
 
 bool isInside(const City& city, const City& cityA, const City& cityB,
