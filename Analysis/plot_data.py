@@ -6,8 +6,8 @@ from matplotlib import pyplot as plt
 import pandas as pd
 
 DATA_DIR = os.getcwd()
-DATA_FILENAME1 = "./enn_tsp_data.csv"
-DATA_FILENAME2 = "./DiscreteENN_TSP_table.csv"
+DATA_FILENAME1 = "Data/enn_tsp_data.csv"
+DATA_FILENAME2 = "Output/DiscreteENN_TSP_table.csv"
 
 DATA_FILE1 = osPath.join(DATA_DIR, DATA_FILENAME1)
 DATA_FILE2 = osPath.join(DATA_DIR, DATA_FILENAME2)

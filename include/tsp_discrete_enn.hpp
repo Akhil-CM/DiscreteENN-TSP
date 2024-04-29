@@ -362,13 +362,12 @@ public:
             const Value_t cost_current{ insertionCost(city, m_cities[pos],
                                                       m_cities[pos_next]) };
             const bool not_equal{ not utils::isEqual(cost_current, cost) };
-            if (not_equal and
-                (cost_current < cost)) {
+            if (not_equal and (cost_current < cost)) {
                 if (global_print) {
-                    utils::printInfo(
-                        "cost_current " + std::to_string(cost_current) +
-                            " and cost " + std::to_string(cost),
-                        "validateNode");
+                    utils::printInfo("cost_current " +
+                                         std::to_string(cost_current) +
+                                         " and cost " + std::to_string(cost),
+                                     "validateNode");
                     utils::printInfo(
                         "Removing " + std::to_string(position) +
                             " from index " + std::to_string(index) +
@@ -868,7 +867,9 @@ public:
                 continue;
             }
             const City& city{ m_cities[pos] };
-            if (insertionCost(city, city_start, city_end) < city.cost) {
+            const Value_t cost{ insertionCost(city, city_start, city_end) };
+            const bool not_equal{ not utils::isEqual(cost, city.cost) };
+            if (not_equal and (cost < city.cost)) {
                 removeNode(idx);
                 if (pos_erased.has_value()) {
                     pos_erased = std::min(*pos_erased, pos);
@@ -1128,30 +1129,29 @@ public:
                                 "run");
                 return false;
             }
-            // if (print_pos) {
-            //     const auto [idx_prev, idx_next] = getNeigbhours(idx_added);
-            //     utils::printInfo(
-            //         "Adding node for city " + std::to_string(pos) + " at " +
-            //         std::to_string(idx_added) + " with neighbours (" +
-            //         std::to_string(idx_prev) + ", " + std::to_string(idx_next) +
-            //         ")" + " having cities (" +
-            //         std::to_string(m_path[idx_prev]) + ", " +
-            //         std::to_string(m_path[idx_next]) + ")" + " path size " +
-            //         std::to_string(m_path.size()));
-            //     m_cities[m_path[properIndex(int(idx_prev) - 1)]].print();
-            //     m_cities[m_path[idx_prev]].print();
-            //     m_cities[m_path[idx_added]].print();
-            //     m_cities[m_path[idx_next]].print();
-            //     m_cities[m_path[properIndex(idx_next + 1)]].print();
-            //     if (loop_count > loop_check) {
-            //         std::cout.flush();
-            //         std::cerr.flush();
-            //         std::this_thread::sleep_for( sleep_time );
-            //         drawPath(m_path, m_cities, true, m_name, loop_time, m_path[idx_added]);
-            //     } else {
-            //         ++loop_count;
-            //     }
-            // }
+            if (print_pos) {
+                const auto [idx_prev, idx_next] = getNeigbhours(idx_added);
+                utils::printInfo(
+                    "Adding node for city " + std::to_string(pos) + " at " +
+                    std::to_string(idx_added) + " with neighbours (" +
+                    std::to_string(idx_prev) + ", " + std::to_string(idx_next) +
+                    ")" + " having cities (" +
+                    std::to_string(m_path[idx_prev]) + ", " +
+                    std::to_string(m_path[idx_next]) + ")" + " path size " +
+                    std::to_string(m_path.size()));
+                m_cities[m_path[properIndex(int(idx_prev) - 1)]].print();
+                m_cities[m_path[idx_prev]].print();
+                m_cities[m_path[idx_added]].print();
+                m_cities[m_path[idx_next]].print();
+                m_cities[m_path[properIndex(idx_next + 1)]].print();
+                if (loop_count > loop_check) {
+                    std::cout.flush();
+                    std::cerr.flush();
+                    std::this_thread::sleep_for(sleep_time);
+                    drawPath(m_path, m_cities, true, m_name, loop_time,
+                             m_path[idx_added]);
+                }
+            }
             // if (checkIntersectPath()) {
             //     utils::printErr("intersection after adding node at " +
             //                         std::to_string(idx_added) + " for city " +
@@ -1213,25 +1213,25 @@ public:
             //     drawPath(m_path, m_cities, false, m_name);
             //     // return false;
             // }
-            // if (print_pos and erased1.has_value()) {
-            //     if (loop_count > loop_check) {
-            //         global_print = true;
-            //         utils::printInfo(
-            //             "After adding node for city " + std::to_string(pos) +
-            //             " at " + std::to_string(idx_added) +
-            //             " and removing intersection city " +
-            //             std::to_string(erased1.value()) + " path size " +
-            //             std::to_string(m_path.size()));
-            //         m_cities[erased1.value()].print();
-            //         std::cout.flush();
-            //         std::cerr.flush();
-            //         std::this_thread::sleep_for(sleep_time);
-            //         drawPath(m_path, m_cities, true, m_name, loop_time,
-            //                  erased1.value());
-            //     } else {
-            //         ++loop_count;
-            //     }
-            // }
+            if (print_pos and erased1.has_value()) {
+                if (loop_count > loop_check) {
+                    global_print = true;
+                    utils::printInfo(
+                        "After adding node for city " + std::to_string(pos) +
+                        " at " + std::to_string(idx_added) +
+                        " and removing intersection city " +
+                        std::to_string(erased1.value()) + " path size " +
+                        std::to_string(m_path.size()));
+                    m_cities[erased1.value()].print();
+                    std::cout.flush();
+                    std::cerr.flush();
+                    std::this_thread::sleep_for(sleep_time);
+                    drawPath(m_path, m_cities, true, m_name, loop_time,
+                             erased1.value());
+                } else {
+                    ++loop_count;
+                }
+            }
 
             // const auto it_erased2 = validatePath();
             // if (it_erased2.err()) {
@@ -1293,7 +1293,7 @@ public:
                 break;
             }
             if (not pattern_hashes.insert(m_pattern).second) {
-                // print_pos = true;
+                print_pos = true;
                 // utils::printInfo(
                 //     "Found repeating pattern. Randomize input node", "run");
                 // utils::printInfo("Path progress " +
