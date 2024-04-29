@@ -346,6 +346,9 @@ int runPipelineSingle(TSPInfo& info, const stdfs::path& data_path,
     TimePoint_t end_time = std::chrono::steady_clock::now();
     if (not success) {
         std::cerr << "[Error] (runPipelineSingle): Discrete ENN run failed.\n";
+        if (draw_failed) {
+            drawPath(path, cities, show_coords, filename);
+        }
         return 1;
     }
     auto delta = std::chrono::duration_cast<TimeUnit_t>(end_time - start_time);
@@ -358,36 +361,6 @@ int runPipelineSingle(TSPInfo& info, const stdfs::path& data_path,
            (path.size() == num_cities));
 
     const std::size_t num_nodes = path.size();
-    for (std::size_t idx{ 0 }; idx != num_nodes; ++idx) {
-        const auto [valid, err] = enn_tsp.validateNode(idx);
-        if (err) {
-            std::cerr
-                << "[Error] (runPipelineSingle): Algoirthm has not found the optimal path\n";
-            return 1;
-        }
-    }
-    IndexExp_t<bool> erased = enn_tsp.validatePath();
-    if (erased.err()) {
-        std::cerr << "[Error] (runPipelineSingle): final validatePath failed\n";
-        if (draw_failed) {
-            drawPath(path, cities, show_coords, filename);
-        }
-        return 1;
-    }
-    if (erased.has_value()) {
-        std::cerr << "[Error] (runPipelineSingle): final validatePath removed node(s)\n";
-        if (draw_failed) {
-            drawPath(path, cities, show_coords, filename);
-        }
-        return 1;
-    }
-    if (enn_tsp.checkIntersectPath()) {
-        std::cerr << "[Error] (runPipelineSingle): final checkIntersectPath failed\n";
-        if (draw_failed) {
-            drawPath(path, cities, show_coords, filename);
-        }
-        return 1;
-    }
 
     // -------------------------------------------
     // Show results

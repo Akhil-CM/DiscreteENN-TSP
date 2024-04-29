@@ -1,6 +1,7 @@
 // -*- C++ Header -*-
 #pragma once
 
+#include <cstdio>
 #include <iostream>
 #include <string>
 #include <cassert>
@@ -92,6 +93,28 @@ inline void printErr(const std::string& msg, const std::string& fname = "")
     std::cerr << (split_newlines ? subtituteStr(msg, "\n", prefix) : msg)
               << '\n';
     std::cerr << Line_Str << '\n';
+}
+
+template<typename... Args>
+inline void printInfoFmt(const std::string& fmt, const std::string& fname, Args... args)
+{
+    const std::size_t msg_len{ fmt.length() * 10 };
+    std::string msg(msg_len, 'a');
+    const int cutoff = std::snprintf(msg.data(), msg.length(), fmt.c_str(), args...);
+    if (cutoff < 0 or cutoff >= msg_len) {
+        utils::printErr("Coud not produce formatted string. cutoff : " + std::to_string(cutoff), "printInfoFmt");
+    }
+    msg = msg.substr(0, cutoff);
+    bool split_newlines = (msg.find('\n') != std::string::npos);
+    std::string prefix{ "[Info]: " };
+    std::cout << Line_Str << '\n';
+    if (not fname.empty()) {
+        prefix = "\n[Info] (" + fname + "): ";
+    }
+    std::cout << prefix;
+    std::cout << (split_newlines ? subtituteStr(msg, "\n", "\n" + prefix) : msg)
+              << '\n';
+    std::cout << Line_Str << '\n';
 }
 
 template <typename F,

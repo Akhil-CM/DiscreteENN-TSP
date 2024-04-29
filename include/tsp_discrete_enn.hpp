@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include <thread>
 #define TSP_DRAW
 
 #define TSP_DEBUG_PRINT 1
@@ -23,6 +22,10 @@
 #include <tuple>
 #include <utility>
 #include <chrono>
+
+#if TSP_DEBUG_PRINT > 1
+#include <thread>
+#endif
 
 #if TSP_ERROR > 1
 #include <stdexcept>
@@ -56,7 +59,9 @@ constexpr Index_t Num_Nodes_Initial{ 10 };
 constexpr bool Validation_Intersection{ true };
 constexpr bool Intersection_Recursive{ true };
 
+#if TSP_DEBUG_PRINT > 1
 inline bool global_print{ false };
+#endif
 
 struct City
 {
@@ -363,6 +368,7 @@ public:
                                                       m_cities[pos_next]) };
             const bool not_equal{ not utils::isEqual(cost_current, cost) };
             if (not_equal and (cost_current < cost)) {
+#if TSP_DEBUG_PRINT > 1
                 if (global_print) {
                     utils::printInfo("cost_current " +
                                          std::to_string(cost_current) +
@@ -375,6 +381,7 @@ public:
                             std::to_string(idx_next) + ")",
                         "validateNode");
                 }
+#endif
                 return std::make_pair(false, false);
             }
         }
@@ -711,6 +718,17 @@ public:
                 ++idx;
                 continue;
             }
+#if TSP_DEBUG_PRINT > 1
+            if (global_print) {
+                const auto [start_tmp, end_tmp] = findEdge(pos_start, pos_end);
+                utils::printInfoFmt("hasIntersection true for the edges (%u, %u) and (%u, %u)", "removeIntersectionEdge", start_tmp, end_tmp, idx, idx_next);
+                utils::printInfoFmt("with the associated cities (%i, %i) and (%i, %i)", "removeIntersectionEdge", pos_start, pos_end, pos, pos_next);
+                city_start.print();
+                city_end.print();
+                city.print();
+                city_next.print();
+            }
+#endif
             Index_t idx_remove{ idx };
             Index_t idx_remove_next{ idx_next };
             // const Value_t dist1{ getDistance(city_start, city_end) };
@@ -870,6 +888,17 @@ public:
             const Value_t cost{ insertionCost(city, city_start, city_end) };
             const bool not_equal{ not utils::isEqual(cost, city.cost) };
             if (not_equal and (cost < city.cost)) {
+#if TSP_DEBUG_PRINT > 1
+                if (global_print) {
+                    const auto [start_tmp, end_tmp] = findEdge(pos_start, pos_end);
+                    utils::printInfoFmt("validation failed for the node %u with edge (%u, %u)", "validateWithEdge", idx, start_tmp, end_tmp);
+                    utils::printInfoFmt("with the associated cities %i and (%i, %i)", "validateWithEdge", pos, pos_start, pos_end);
+                    utils::printInfoFmt("with the associated cost %f and city.cost %f", "validateWithEdge", cost, city.cost);
+                    city_start.print();
+                    city_end.print();
+                    city.print();
+                }
+#endif
                 removeNode(idx);
                 if (pos_erased.has_value()) {
                     pos_erased = std::min(*pos_erased, pos);
@@ -1092,18 +1121,19 @@ public:
 
     bool run(std::default_random_engine& gen)
     {
+#if TSP_DEBUG_PRINT > 1
+        bool print_pos{ false };
+        int loop_count{ 0 };
+        int loop_check = 1e4;
+        float loop_time{ 10.0 };
+        std::chrono::seconds sleep_time{ 10 };
+#endif
         typedef std::uniform_int_distribution<int> distrib_t;
         [[maybe_unused]] const Index_t num_cities = m_cities.size();
         distrib_t distrib(0, num_cities - 1);
         std::unordered_set<std::string> pattern_hashes;
         Index_t pos{ stackPopBack() };
         int idx_added{ -1 };
-        // [[maybe_unused]] bool flip = false;
-        [[maybe_unused]] bool print_pos{ false };
-        [[maybe_unused]] int loop_count{ 0 };
-        [[maybe_unused]] int loop_check = 1e4;
-        [[maybe_unused]] float loop_time{ 10.0 };
-        [[maybe_unused]] std::chrono::seconds sleep_time{ 10 };
         while (true) {
             if (m_fromScratch) {
                 idx_added = 0;
@@ -1129,6 +1159,8 @@ public:
                                 "run");
                 return false;
             }
+
+#if TSP_DEBUG_PRINT > 1
             if (print_pos) {
                 const auto [idx_prev, idx_next] = getNeigbhours(idx_added);
                 utils::printInfo(
@@ -1152,16 +1184,7 @@ public:
                              m_path[idx_added]);
                 }
             }
-            // if (checkIntersectPath()) {
-            //     utils::printErr("intersection after adding node at " +
-            //                         std::to_string(idx_added) + " for city " +
-            //                         std::to_string(m_path[idx_added]) +
-            //                         " current path size " +
-            //                         std::to_string(m_path.size()),
-            //                     "run");
-            //     drawPath(m_path, m_cities, false, m_name);
-            //     // return false;
-            // }
+#endif
 
             const auto [idx_prev, idx_next] = getNeigbhours(idx_added);
             const Index_t pos_start{ m_path[idx_added] };
@@ -1175,6 +1198,7 @@ public:
                     "run");
                 return false;
             }
+
             if (not m_fromScratch and (not m_cities[pos_start].on_stack) and
                 (not m_cities[pos_end].on_stack)) {
                 const auto [start, end] = findEdge(pos_start, pos_end);
@@ -1190,29 +1214,38 @@ public:
                 }
             }
 
-            // const Index_t pos_added{ m_path[idx_added] },
-            //     pos_next{ m_path[idx_next] };
-            // auto it_erased1 = removeIntersection(idx_prev, idx_added);
-            // const auto edge_next{ findEdge(pos_added, pos_next) };
-            // if (edge_next.first != -1) {
-            //     const auto it_erased1_tmp =
-            //         removeIntersection(edge_next.first, edge_next.second);
-            //     if (it_erased1_tmp.has_value()) {
-            //         it_erased1 = it_erased1.has_value() ?
-            //                          std::min(*it_erased1, *it_erased1_tmp) :
-            //                          it_erased1_tmp;
-            //     }
-            // }
+#if TSP_DEBUG_PRINT > 2
+            if (checkIntersectPath()) {
+                utils::printErr(
+                    "intersection after removeIntersection from adding node at " +
+                        std::to_string(idx_added) + " current path size " +
+                        std::to_string(m_path.size()),
+                    "run");
+                drawPath(m_path, m_cities, false, m_name);
+            }
+#endif
 
-            // if (checkIntersectPath()) {
-            //     utils::printErr(
-            //         "intersection after removeIntersection from adding node at " +
-            //             std::to_string(idx_added) + " current path size " +
-            //             std::to_string(m_path.size()),
-            //         "run");
-            //     drawPath(m_path, m_cities, false, m_name);
-            //     // return false;
-            // }
+#if TSP_DEBUG_PRINT > 2
+            const auto it_erased = validatePath();
+            if (it_erased.err()) {
+                utils::printErr("validatePath failed", "run");
+                return false;
+            }
+            if (it_erased.has_value()) {
+                utils::printErr(
+                    "validatePath removed nodes after validateEdge",
+                    "run");
+                utils::printErr("After adding node for pos " +
+                                 std::to_string(pos) + " at " +
+                                 std::to_string(idx_added) +
+                                 " and removing validation city " +
+                                 std::to_string(it_erased.value()) +
+                                 " path size " + std::to_string(m_path.size()));
+                m_cities[it_erased.value()].print();
+            }
+#endif
+
+#if TSP_DEBUG_PRINT > 1
             if (print_pos and erased1.has_value()) {
                 if (loop_count > loop_check) {
                     global_print = true;
@@ -1232,122 +1265,62 @@ public:
                     ++loop_count;
                 }
             }
-
-            // const auto it_erased2 = validatePath();
-            // if (it_erased2.err()) {
-            //     utils::printErr("validatePath failed", "run");
-            //     return false;
-            // }
-            // if (print_pos and it_erased2.has_value()) {
-            //     utils::printInfo("After adding node for pos " +
-            //                      std::to_string(pos) + " at " +
-            //                      std::to_string(idx_added) +
-            //                      " and removing validation city " +
-            //                      std::to_string(it_erased2.value()) +
-            //                      " path size " + std::to_string(m_path.size()));
-            //     m_cities[it_erased2.value()].print();
-            //     if (loop_count > loop_check) {
-            //         std::cout.flush();
-            //         std::cerr.flush();
-            //         std::this_thread::sleep_for( sleep_time );
-            //         drawPath(m_path, m_cities, true, m_name, loop_time, it_erased2.value());
-            //     }
-            // }
-            // if (checkIntersectPath()) {
-            //     utils::printErr(
-            //         "intersection after validatePath from adding node at " +
-            //             std::to_string(idx_added) + " current path size " +
-            //             std::to_string(m_path.size()),
-            //         "run");
-            //     drawPath(m_path, m_cities, false, m_name);
-            //     // return false;
-            // }
-            // if (m_fromScratch) {
-            //     // const int idx_rand{ distrib(gen) };
-            //     pos = stackPopAt(idx_rand);
-            //     continue;
-            // }
-
-            // if (it_erased1.has_value() or it_erased2.has_value()) {
-            //     distrib.param(distrib_t::param_type(0, m_stack.size() - 1));
-            //     const int idx_rand{ distrib(gen) };
-            //     pos = stackPopAt(idx_rand);
-            //     pos = stackPopBack();
-            //     continue;
-            // }
-            // if (it_erased1.has_value()) {
-            //     it = *it_erased1;
-            // }
-            // if (it_erased2.has_value()) {
-            //     if (it_erased1.has_value()) {
-            //         it = (*it_erased1)->id < (it_erased2.value())->id ?
-            //                  *it_erased1 :
-            //                  it_erased2.value();
-            //     } else {
-            //         it = it_erased2.value();
-            //     }
-            // }
+#endif
 
             const Index_t stack_size = m_stack.size();
             if (stack_size == 0) {
                 break;
             }
             if (not pattern_hashes.insert(m_pattern).second) {
+#if TSP_DEBUG_PRINT > 1
                 print_pos = true;
-                // utils::printInfo(
-                //     "Found repeating pattern. Randomize input node", "run");
-                // utils::printInfo("Path progress " +
-                //                      std::to_string(m_path.size()) + "/" +
-                //                      std::to_string(num_cities),
-                //                  "run");
+                utils::printInfo(
+                    "Found repeating pattern. Randomize input node", "run");
+                utils::printInfo("Path progress " +
+                                     std::to_string(m_path.size()) + "/" +
+                                     std::to_string(num_cities),
+                                 "run");
+#endif
 
-                // if (flip) {
-                //     distrib.param(distrib_t::param_type(0, m_path.size() - 1));
-                // } else {
-                //     distrib.param(distrib_t::param_type(m_path.size() - 1,
-                //                                         num_cities - 1));
-                // }
-                // flip = not flip;
                 distrib.param(distrib_t::param_type(0, stack_size - 1));
                 const int idx_rand{ distrib(gen) };
-                // const int idx_rand = stack_size - 2;
                 // const int idx_rand = 0;
                 pos = stackPopAt(idx_rand);
-                // utils::printInfo("New starting point " +
-                //                      std::to_string(idx_rand) + " with city " +
-                //                      std::to_string(pos),
-                //                  "run");
-                continue;
-#if (TSP_DEBUG_PRINT > 0)
-                std::cout << ("\n[Debug] (run): drawPath started\n");
-#endif
-                // drawPath(path, stack, true, m_name);
-#if (TSP_DEBUG_PRINT > 0)
-                std::cout << ("[Debug] (run): drawPath ended\n");
-#endif
-            }
-            // print_pos = false;
-            // TimePoint_t end_time = std::chrono::steady_clock::now();
-            // auto delta = std::chrono::duration_cast<TimeUnit_t>(end_time - start_time);
-            // const Value_t duration = delta.count();
-            // m_timePerIter += duration;
-            // m_timePerIterMin = std::min(duration, m_timePerIterMin);
-            // m_timePerIterMax = std::max(duration, m_timePerIterMax);
-            // ++m_iterNum;
 
-            // #if (TSP_DEBUG_PRINT > 0)
-            //             std::cout << ("\n[Debug] (run): validatePath updateCostAll\n");
-            // #endif
-            //             const auto [success, idx] = updateCostAll(path);
-            //             if (not success) {
-            //                 std::cerr
-            //                     << "[Error] (run): updateCostAll failed at index "
-            //                     << idx << '\n';
-            //                 return false;
-            //             }
+#if TSP_DEBUG_PRINT > 1
+                utils::printInfo("New starting point " +
+                                     std::to_string(idx_rand) + " with city " +
+                                     std::to_string(pos),
+                                 "run");
+#endif
+                continue;
+            }
 
             pos = stackPopBack();
         }
+
+        for (std::size_t idx{ 0 }; idx != num_cities; ++idx) {
+            const auto [valid, err] = validateNode(idx);
+            if (err) {
+                std::cerr
+                    << "[Error] (run): Algoirthm has not found the optimal path\n";
+                return false;
+            }
+        }
+        IndexExp_t<bool> erased = validatePath();
+        if (erased.err()) {
+            std::cerr << "[Error] (run): final validatePath failed\n";
+            return false;
+        }
+        if (erased.has_value()) {
+            std::cerr << "[Error] (run): final validatePath removed node(s)\n";
+            return false;
+        }
+        if (checkIntersectPath()) {
+            std::cerr << "[Error] (run): final checkIntersectPath failed\n";
+            return false;
+        }
+
         return true;
     }
 
