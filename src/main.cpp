@@ -294,6 +294,7 @@ int runPipelineSingle(TSPInfo& info, const stdfs::path& data_path,
         // Construct Stack
         // -------------------------------------------
         createStack(cities_tmp, cities, layers);
+        // createStack(cities_tmp, cities);
         std::printf("[Info] (runPipelineSingle): Total number of layers created %d.\n", layers);
     }
     const std::size_t num_cities = cities.size();

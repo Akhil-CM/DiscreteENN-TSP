@@ -18,7 +18,7 @@ namespace stdfs = std::filesystem;
 using namespace std::string_literals;
 
 // Floating point precision helpers
-constexpr float epsilonf = 1e-3;
+constexpr float epsilonf = 1e-2;
 inline bool isEqual(float a, float b)
 {
     return std::abs(a - b) < epsilonf;

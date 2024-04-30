@@ -1,0 +1,60 @@
+[Info] (run): Found repeating pattern. Randomize input node
+[Info] (run): Found repeating pattern. Randomize input node
+Run: 1 successful
+Run: 2 successful
+Run: 3 successful
+Run: 4 successful
+[Info] (run): Found repeating pattern. Randomize input node
+Run: 5 successful
+Run: 6 successful
+[Info] (run): Found repeating pattern. Randomize input node
+Run: 7 successful
+[Info] (run): Found repeating pattern. Randomize input node
+Run: 8 successful
+Run: 9 successful
+Run: 10 successful
+Run: 11 successful
+[Info] (run): Found repeating pattern. Randomize input node
+Run: 12 successful
+Run: 13 successful
+Run: 14 successful
+Run: 15 successful
+[Info] (run): Found repeating pattern. Randomize input node
+Run: 16 successful
+[Info] (run): Found repeating pattern. Randomize input node
+[Info] (run): Found repeating pattern. Randomize input node
+Run: 17 successful
+Run: 18 successful
+Run: 19 successful
+Run: 20 successful
+Run: 21 successful
+Run: 22 successful
+[Info] (run): Found repeating pattern. Randomize input node
+Run: 23 successful
+Run: 24 successful
+Run: 25 successful
+[Info] (run): Found repeating pattern. Randomize input node
+Run: 26 successful
+[Info] (run): Found repeating pattern. Randomize input node
+[Info] (run): Found repeating pattern. Randomize input node
+Run: 27 successful
+[Info] (run): Found repeating pattern. Randomize input node
+Run: 28 successful
+[Info] (run): Found repeating pattern. Randomize input node
+[Info] (run): Found repeating pattern. Randomize input node
+Run: 29 successful
+[Info] (run): Found repeating pattern. Randomize input node
+Run: 30 successful
+Run: 31 successful
+Run: 32 successful
+[Info] (run): Found repeating pattern. Randomize input node
+[Info] (run): Found repeating pattern. Randomize input node
+[Info] (run): Found repeating pattern. Randomize input node
+[Info] (run): Found repeating pattern. Randomize input node
+[Info] (run): Found repeating pattern. Randomize input node
+[Info] (run): Found repeating pattern. Randomize input node
+Run: 33 successful
+[Info] (run): Found repeating pattern. Randomize input node
+[Info] (run): Found repeating pattern. Randomize input node
+[Error] (updateCostNeighbour): Invalid node cost calculate for node curr at 51 current path size 93
+Completed runs: 33

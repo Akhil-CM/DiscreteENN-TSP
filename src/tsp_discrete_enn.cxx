@@ -101,27 +101,28 @@ auto createCityLayers(const Cities_t& cities, CityLayers_t& city_layers,
         ++added;
     }
     ++depth;
+    int depth_current{depth};
     {
         auto [tmp_add, tmp_depth] = createCityLayers(
-            quadrants[0], city_layers, { min_x, mid_x, min_y, mid_y }, depth);
+            quadrants[0], city_layers, { min_x, mid_x, min_y, mid_y }, depth_current);
         added += tmp_add;
         depth = std::max(tmp_depth, depth);
     }
     {
         auto [tmp_add, tmp_depth] = createCityLayers(
-            quadrants[1], city_layers, { mid_x, max_x, min_y, mid_y }, depth);
+            quadrants[1], city_layers, { mid_x, max_x, min_y, mid_y }, depth_current);
         added += tmp_add;
         depth = std::max(tmp_depth, depth);
     }
     {
         auto [tmp_add, tmp_depth] = createCityLayers(
-            quadrants[2], city_layers, { min_x, mid_x, mid_y, max_y }, depth);
+            quadrants[2], city_layers, { min_x, mid_x, mid_y, max_y }, depth_current);
         added += tmp_add;
         depth = std::max(tmp_depth, depth);
     }
     {
         auto [tmp_add, tmp_depth] = createCityLayers(
-            quadrants[3], city_layers, { mid_x, max_x, mid_y, max_y }, depth);
+            quadrants[3], city_layers, { mid_x, max_x, mid_y, max_y }, depth_current);
         added += tmp_add;
         depth = std::max(tmp_depth, depth);
     }
@@ -177,13 +178,49 @@ void createStack(const Cities_t& cities, Cities_t& stack, int& layers)
     }
 }
 
+void createStack(const Cities_t& cities, Cities_t& stack)
+{
+    const Index_t num_cities = cities.size();
+    stack.reserve(static_cast<std::size_t>(num_cities));
+    auto sorter = [](const City& a, const City& b) { return (std::pair{a.x, a.y} < std::pair{b.x, b.y}); };
+    auto cities_copy = cities;
+    std::sort(cities_copy.begin(), cities_copy.end(), sorter);
+    bool change{ false };
+    Index_t start{0}, end{num_cities - 1};
+    for (Index_t idx{0}; idx != num_cities; ++idx) {
+        City city;
+        if (change) {
+            city = cities_copy[end];
+            --end;
+        } else {
+            city = cities_copy[start];
+            ++start;
+        }
+        city.on_stack = true;
+        city.id = idx;
+        stack.push_back(city);
+        change = not change;
+    }
+    const std::size_t stack_size = stack.size();
+    if (stack_size != num_cities) {
+        const std::string& error_msg{ "stack size (" +
+                                      std::to_string(stack_size) +
+                                      ") doesn't match number of cities (" +
+                                      std::to_string(num_cities) +
+                                      ").\nExiting." };
+        utils::printErr(error_msg, "createStack");
+        exit(EXIT_FAILURE);
+    }
+}
+
 Value_t insertionCost(const City& new_city, const City& cityA,
                              const City& cityB)
 {
     const Value_t cost = getDistance(new_city, cityA) +
                          getDistance(new_city, cityB) -
                          getDistance(cityA, cityB);
-    return utils::getRound3(cost);
+    const Value_t cost_rounded{ utils::getRound3(cost) };
+    return utils::isEqual(cost_rounded, VALUE_ZERO) ? VALUE_ZERO : cost_rounded;
 }
 
 bool isInside(const City& city, const City& cityA, const City& cityB,

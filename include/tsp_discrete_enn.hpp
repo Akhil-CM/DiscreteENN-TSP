@@ -22,6 +22,7 @@
 #include <utility>
 #include <chrono>
 
+#include <thread>
 #if TSP_DEBUG_PRINT > 0
 #include <thread>
 #endif
@@ -54,7 +55,7 @@ typedef std::size_t Index_t;
 constexpr Value_t VALUE_ZERO{ Value_t{ 0 } };
 constexpr Value_t VALUE_ONE_NEG{ Value_t{ -1 } };
 
-constexpr Index_t Num_Nodes_Initial{ 10 };
+constexpr Index_t Num_Nodes_Initial{ 3 };
 constexpr bool Validation_Intersection{ true };
 constexpr bool Intersection_Recursive{ true };
 
@@ -64,17 +65,16 @@ inline bool global_print{ false };
 
 struct City
 {
-    bool on_stack;
-    int id, layer;
-    Value_t x, y, cost;
+    bool on_stack{false};
+    int id, layer{-1};
+    Value_t x, y, cost{VALUE_ZERO};
+
+    City() = default;
 
     City(int id, Value_t x, Value_t y)
-        : on_stack{ false }
-        , id{ id }
-        , layer{ -1 }
+        : id{ id }
         , x{ x }
         , y{ y }
-        , cost{ 0.0 }
     {
     }
 
@@ -98,9 +98,9 @@ typedef std::map<int, Cities_t> CityLayers_t;
 typedef std::vector<Index_t> Indices_t;
 typedef std::optional<Index_t> IndexOpt_t;
 template <typename T> using IndexExp_t = utils::Expected<Index_t, T>;
-// typedef Indices_t Stack_t;
+typedef Indices_t Stack_t;
 // typedef std::set<Index_t> Stack_t;
-typedef std::set<Index_t, std::greater<Index_t>> Stack_t;
+// typedef std::set<Index_t, std::greater<Index_t>> Stack_t;
 
 template <> inline bool utils::MatchItem<City>::operator()(const City& city)
 {
@@ -295,18 +295,23 @@ public:
 
     Index_t stackPopBack()
     {
-        const Stack_t::const_iterator back{ --(m_stack.end()) };
-        const Index_t result{ *back };
-        m_stack.erase(back);
+        const Index_t result{ m_stack.back() };
+        m_stack.pop_back();
+        // const Stack_t::const_iterator back{ --(m_stack.end()) };
+        // const Index_t result{ *back };
+        // m_stack.erase(back);
         m_cities[result].on_stack = false;
         return result;
     }
 
     Index_t stackPopAt(Index_t index)
     {
-        const Stack_t::const_iterator it{ std::next(m_stack.begin(), index) };
+        const Stack_t::const_iterator it{ m_stack.begin() + index };
         const Index_t result{ *it };
         m_stack.erase(it);
+        // const Stack_t::const_iterator it{ std::next(m_stack.begin(), index) };
+        // const Index_t result{ *it };
+        // m_stack.erase(it);
         m_cities[result].on_stack = false;
         return result;
     }
@@ -323,7 +328,9 @@ public:
         const Indices_t::iterator node_iter{ m_path.begin() + index };
         m_path.erase(node_iter);
         m_cities[pos].on_stack = true;
-        m_stack.insert(pos);
+        m_stack.push_back(pos);
+        // m_stack.insert(m_stack.begin(), pos);
+        // m_stack.insert(pos);
     }
 
     void addNode(Index_t index, Index_t pos)
@@ -1088,9 +1095,9 @@ public:
         // m_stack.reserve(num_cities);
         [[maybe_unused]] const Index_t end{ num_cities - 1 };
         for (Index_t idx{ 0 }; idx != num_cities; ++idx) {
-            // m_stack.push_back(end - idx);
+            m_stack.push_back(end - idx);
             // m_stack.push_back(idx);
-            m_stack.insert(idx);
+            // m_stack.insert(idx);
         }
     }
 
@@ -1118,6 +1125,11 @@ public:
 
     bool run(std::default_random_engine& gen)
     {
+        // {
+        //     std::chrono::seconds sleep_time{ 10 };
+        //     drawPath(m_path, m_cities, false, m_name);
+        //     std::this_thread::sleep_for(sleep_time);
+        // }
 #if TSP_DEBUG_PRINT > 0
         bool print_pos{ false };
         int loop_count{ 0 };
@@ -1182,6 +1194,12 @@ public:
                 }
             }
 #endif
+            // if (pos == 21){
+            //     std::chrono::seconds sleep_time{ 5 };
+            //     m_cities[pos].print();
+            //     drawPath(m_path, m_cities, false, m_name, 5, pos);
+            //     std::this_thread::sleep_for(sleep_time);
+            // }
 
             const auto [idx_prev, idx_next] = getNeigbhours(idx_added);
             const Index_t pos_start{ m_path[idx_added] };
@@ -1210,6 +1228,12 @@ public:
                     return false;
                 }
             }
+            // if (pos == 21){
+            //     std::chrono::seconds sleep_time{ 5 };
+            //     m_cities[pos].print();
+            //     drawPath(m_path, m_cities, false, m_name, 5, pos);
+            //     std::this_thread::sleep_for(sleep_time);
+            // }
 
 #if TSP_DEBUG_PRINT > 1
             if (checkIntersectPath()) {
@@ -1271,8 +1295,14 @@ public:
             if (not pattern_hashes.insert(m_pattern).second) {
                 distrib.param(distrib_t::param_type(0, stack_size - 1));
                 const int idx_rand{ distrib(gen) };
+                // const int idx_rand = num_cities%stack_size;
                 // const int idx_rand = 0;
                 pos = stackPopAt(idx_rand);
+                utils::printInfo(
+                    "Found repeating pattern. Randomize input node", "run");
+                utils::printInfoFmt("Path progress %u/%u", "run", m_path.size(), num_cities);
+                utils::printInfoFmt("New starting point %i with city %u",
+                                 "run", idx_rand, pos);
 
 #if TSP_DEBUG_PRINT > 0
                 print_pos = true;
@@ -1338,6 +1368,8 @@ auto createCityLayers(const Cities_t& cities, CityLayers_t& city_layers,
                       const MinMaxCoords& minmax_coords, int depth);
 
 void createStack(const Cities_t& cities, Cities_t& stack, int& layers);
+
+void createStack(const Cities_t& cities, Cities_t& stack);
 
 struct TSPInfo
 {

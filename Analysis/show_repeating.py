@@ -15,8 +15,8 @@ def runCommand(cmd, args, file):
         stderr=subprocess.STDOUT,
         text=True
     )
-    success = True
     command_in_loop = 0
+    success = True
     while True:
         # if command_in_loop > 1e6:
         #     return 1
@@ -24,17 +24,18 @@ def runCommand(cmd, args, file):
         if output == '' and process.poll() is not None:
             break
         if output:
-            print(output.strip())
-            # command_in_loop += 1
-            if "[Error]" in output:
+            if "Found repeating pattern" in output or "[Error]" in output:
+                print(output.strip())
                 file.write(output.strip())
                 file.write("\n")
+            # command_in_loop += 1
+            if "[Error]" in output:
                 success = False
 
     exit_code = process.wait() if success else 1
     return exit_code
 
-def runUntilFailure(cmd, args, file):
+def runRepeating(cmd, args, file):
     count = 0
     while True:
         print()
@@ -81,10 +82,11 @@ def main():
     if command[0:2] == "./":
         command = os.path.abspath(command)
 
-    out_file = open("./Analysis/until_fail.txt", "w")
+    out_file = open("./Analysis/repeating.txt", "w")
     print()
     print()
-    runUntilFailure(command, command_args, out_file)
+    runRepeating(command, command_args, out_file)
+    out_file.close()
 
 if __name__ == "__main__":
     main()
