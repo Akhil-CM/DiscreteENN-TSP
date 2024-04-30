@@ -55,7 +55,7 @@ typedef std::size_t Index_t;
 constexpr Value_t VALUE_ZERO{ Value_t{ 0 } };
 constexpr Value_t VALUE_ONE_NEG{ Value_t{ -1 } };
 
-constexpr Index_t Num_Nodes_Initial{ 3 };
+constexpr Index_t Num_Nodes_Initial{ 2 };
 constexpr bool Validation_Intersection{ true };
 constexpr bool Intersection_Recursive{ true };
 
@@ -114,7 +114,7 @@ template <> inline bool utils::MatchItem<Node_t>::operator()(const Node_t& node)
 
 void drawPath(const Indices_t& path, const Cities_t& cities, bool show_coords,
               const std::string& title, float close_time = 3600.0,
-              int highlight = -1);
+              int highlight = -1, int highlight_line = -1);
 
 class MinMaxCoords
 {
@@ -349,6 +349,9 @@ public:
     std::pair<bool, bool> validateNode(Index_t index) const
     {
         const Index_t num_nodes = m_path.size();
+        if (num_nodes == 3) {
+            return std::make_pair(true, false);
+        }
 #if TSP_ERROR > 0
         if (num_nodes < 3) {
             utils::printErr("given path size less than 3", "validateNode");
@@ -574,7 +577,7 @@ public:
         }
 #endif
         for (Index_t idx{ 0 }; idx != num_nodes;) {
-            if (m_fromScratch) {
+            if (m_fromScratch or (num_nodes == 3)) {
                 break;
             }
             const auto [valid, err] = validateNode(idx);
@@ -597,14 +600,13 @@ public:
             } else {
                 pos_erased = pos;
             }
-            if (num_nodes == 2) {
-                m_fromScratch = true;
-                break;
-            }
             const Index_t end = properIndex(idx);
             const Index_t start = properIndex(properIndex(int(end) - 1));
             updateCost(start);
             updateCost(end);
+            if (num_nodes == 3) {
+                break;
+            }
             const auto erased = validateEdge(start, end);
             if (erased.err()) {
                 utils::printErr(
@@ -816,14 +818,13 @@ public:
                 } else {
                     pos_erased = pos;
                 }
-                if (m_path.size() == 2) {
-                    m_fromScratch = true;
-                    return IndexExp_t<bool>{ pos_erased, false };
-                }
                 end = properIndex(end);
                 start = properIndex(properIndex(int(end) - 1));
                 updateCost(start);
                 updateCost(end);
+                if (m_path.size() == 3) {
+                    return IndexExp_t<bool>{ pos_erased, false };
+                }
                 const auto erased1 = validateEdge(start, end);
                 if (erased1.err()) {
                     utils::printErr("validateEdge failed with (" +
@@ -848,14 +849,13 @@ public:
             } else {
                 pos_erased = pos;
             }
-            if (m_path.size() == 2) {
-                m_fromScratch = true;
-                return IndexExp_t<bool>{ pos_erased, false };
-            }
             end = properIndex(start);
             start = properIndex(properIndex(int(end) - 1));
             updateCost(start);
             updateCost(end);
+            if (m_path.size() == 3) {
+                return IndexExp_t<bool>{ pos_erased, false };
+            }
             const auto erased2 = validateEdge(start, end);
             if (erased2.err()) {
                 utils::printErr(
@@ -881,7 +881,7 @@ public:
         const City& city_start{ m_cities[pos_start] };
         const City& city_end{ m_cities[pos_end] };
         for (Index_t idx{ 0 }; idx != m_path.size();) {
-            if (m_fromScratch or city_start.on_stack or city_end.on_stack) {
+            if (m_fromScratch or (m_path.size() == 3) or city_start.on_stack or city_end.on_stack) {
                 break;
             }
             const Index_t pos{ m_path[idx] };
@@ -909,14 +909,13 @@ public:
                 } else {
                     pos_erased = pos;
                 }
-                if (m_path.size() == 2) {
-                    m_fromScratch = true;
-                    return IndexExp_t<bool>{ pos_erased, false };
-                }
                 end = properIndex(idx);
                 start = properIndex(properIndex(int(end) - 1));
                 updateCost(start);
                 updateCost(end);
+                if (m_path.size() == 3) {
+                    return IndexExp_t<bool>{ pos_erased, false };
+                }
                 const auto erased = validateEdge(start, end);
                 if (erased.err()) {
                     utils::printErr("validateEdge failed with (" +
@@ -942,6 +941,9 @@ public:
     IndexExp_t<bool> validateEdge(Index_t start, Index_t end)
     {
         IndexOpt_t pos_erased{ std::nullopt };
+        if (m_path.size() == 3) {
+            return IndexExp_t<bool>{ pos_erased, false };
+        }
         const Index_t pos_start{ m_path[start] };
         const Index_t pos_end{ m_path[end] };
         const auto erased1 = removeIntersectionEdge(start, end);
@@ -1194,7 +1196,8 @@ public:
                 }
             }
 #endif
-            // if (pos == 21){
+            // if (pos == 21)
+            // {
             //     std::chrono::seconds sleep_time{ 5 };
             //     m_cities[pos].print();
             //     drawPath(m_path, m_cities, false, m_name, 5, pos);
@@ -1204,8 +1207,8 @@ public:
             const auto [idx_prev, idx_next] = getNeigbhours(idx_added);
             const Index_t pos_start{ m_path[idx_added] };
             const Index_t pos_end{ m_path[idx_next] };
-            const auto erased1 = validateEdge(idx_prev, idx_added);
-            if (erased1.err()) {
+            auto erased = validateEdge(idx_prev, idx_added);
+            if (erased.err()) {
                 utils::printErr(
                     "validateEdge failed with (" + std::to_string(idx_prev) +
                         ", " + std::to_string(idx_added) +
@@ -1217,8 +1220,8 @@ public:
             if (not m_fromScratch and (not m_cities[pos_start].on_stack) and
                 (not m_cities[pos_end].on_stack)) {
                 const auto [start, end] = findEdge(pos_start, pos_end);
-                const auto erased2 = validateEdge(start, end);
-                if (erased2.err()) {
+                const auto erased_tmp = validateEdge(start, end);
+                if (erased_tmp.err()) {
                     utils::printErr("validateEdge failed with (" +
                                         std::to_string(start) + ", " +
                                         std::to_string(end) +
@@ -1227,11 +1230,16 @@ public:
                                     "run");
                     return false;
                 }
+                if (erased_tmp.has_value()) {
+                    erased.opt() = erased.has_value() ? std::min(erased.value(), erased_tmp.value()) : erased_tmp.opt();
+                }
             }
-            // if (pos == 21){
+            // if (pos == 21)
+            // if (erased.has_value())
+            // {
             //     std::chrono::seconds sleep_time{ 5 };
             //     m_cities[pos].print();
-            //     drawPath(m_path, m_cities, false, m_name, 5, pos);
+            //     drawPath(m_path, m_cities, true, m_name, 5, erased.value());
             //     std::this_thread::sleep_for(sleep_time);
             // }
 

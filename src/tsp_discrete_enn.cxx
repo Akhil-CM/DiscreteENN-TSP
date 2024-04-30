@@ -213,6 +213,59 @@ void createStack(const Cities_t& cities, Cities_t& stack)
     }
 }
 
+void createStack(const Cities_t& cities, Cities_t& stack, int parts)
+{
+    const Index_t num_cities = cities.size();
+    stack.reserve(static_cast<std::size_t>(num_cities));
+    auto sorter = [](const City& a, const City& b) { return (std::pair{a.x, a.y} < std::pair{b.x, b.y}); };
+    auto cities_copy = cities;
+    std::sort(cities_copy.begin(), cities_copy.end(), sorter);
+    MinMaxCoords minmax_coords;
+    minmax_coords.update(cities);
+    const auto [min_x, max_x, min_y, max_y] = minmax_coords.value();
+    const auto [min_coord, max_coord] = minmax_coords.minmax();
+    min_x = min_y = static_cast<Value_t>(0);
+    max_x = max_y = max_coord;
+    Value_t mid_x = (min_x + max_x) / 2.0;
+    Value_t mid_y = (min_y + max_y) / 2.0;
+    Cities_t quadrants[parts];
+    for (const City& coord : cities) {
+        if (coord.x <= mid_x && coord.y <= mid_y)
+            quadrants[0].push_back(coord);
+        else if (coord.x > mid_x && coord.y <= mid_y)
+            quadrants[1].push_back(coord);
+        else if (coord.x <= mid_x && coord.y > mid_y)
+            quadrants[2].push_back(coord);
+        else if (coord.x > mid_x && coord.y > mid_y)
+            quadrants[3].push_back(coord);
+    }
+
+    int count{ 0 };
+    for (int idx{ 0 }; idx != parts; ++idx) {
+        Cities_t& cities_quadrant{ quadrants[idx] };
+        if (cities_quadrant.empty()) {
+            continue;
+        }
+        City city = cities_quadrant.back();
+        cities_quadrant.pop_back();
+        city.id = count;
+        city.on_stack = true;
+        stack.push_back(city);
+        ++count;
+    }
+    const std::size_t stack_size = stack.size();
+    if (stack_size != num_cities) {
+        const std::string& error_msg{ "stack size (" +
+                                      std::to_string(stack_size) +
+                                      ") doesn't match number of cities (" +
+                                      std::to_string(num_cities) +
+                                      ").\nExiting." };
+        utils::printErr(error_msg, "createStack");
+        exit(EXIT_FAILURE);
+    }
+}
+
+
 Value_t insertionCost(const City& new_city, const City& cityA,
                              const City& cityB)
 {
@@ -353,8 +406,26 @@ void fitPointsInWindow(Cities_t& cities, const sf::Vector2u& window_size,
     }
 }
 
+void fitPointsInWindow(MinMaxCoords& minmax_coords_copy, const sf::Vector2u& window_size,
+                       Value_t margin)
+{
+    const auto [min_x_copy, max_x_copy, min_y_copy, max_y_copy] = minmax_coords_copy.value();
+
+    Value_t width{ max_x_copy - min_x_copy };
+    Value_t height{ max_y_copy - min_y_copy };
+    // Calculate scale factors for x and y to fit the plot within the window, considering margins
+    Value_t scaleX = (window_size.x - 2 * margin) / width;
+    Value_t scaleY = (window_size.y - 2 * margin) / height;
+
+    // Apply scale and translation to the points
+    min_x_copy = (min_x_copy - min_x_copy) * scaleX + margin;
+    min_y_copy = (min_y_copy - min_y_copy) * scaleY + margin;
+    max_x_copy = (max_x_copy - min_x_copy) * scaleX + margin;
+    max_y_copy = (max_y_copy - min_y_copy) * scaleY + margin;
+}
+
 void drawPath(const Indices_t& path, const Cities_t& cities, bool show_coords,
-              const std::string& title, float close_time, int highlight)
+              const std::string& title, float close_time, int highlight, int)
 {
     // Get the current desktop video mode
     [[maybe_unused]] sf::VideoMode desktopMode =
@@ -379,10 +450,8 @@ void drawPath(const Indices_t& path, const Cities_t& cities, bool show_coords,
     VectSF_t points;
     points.reserve(path.size());
     path2SFVector(path, cities, points);
-    // fitPointsInWindow(points, {static_cast<unsigned int>(max_coord), static_cast<unsigned int>(max_coord)}, minmax_coords, 20);
     fitPointsInWindow(points, window.getSize(), minmax_coords, 50);
     Cities_t cities_copy = cities;
-    // fitPointsInWindow(cities, {static_cast<unsigned int>(max_coord), static_cast<unsigned int>(max_coord)}, minmax_coords, 20);
     fitPointsInWindow(cities_copy, window.getSize(), minmax_coords, 50);
     sf::ConvexShape polygon;
     polygon.setPointCount(points.size());
@@ -393,6 +462,26 @@ void drawPath(const Indices_t& path, const Cities_t& cities, bool show_coords,
     polygon.setFillColor(sf::Color::Transparent); // Transparent fill
     polygon.setOutlineThickness(2); // Line thickness
     polygon.setOutlineColor(sf::Color::Red); // Line color
+
+    // auto minmax_coords_copy = minmax_coords;
+    // const auto [min_x, max_x, min_y, max_y] = minmax_coords_copy.value();
+    // min_x = min_y = static_cast<Value_t>(0);
+    // max_x = max_y = max_coord;
+    // fitPointsInWindow(minmax_coords_copy, window.getSize(), 50);
+    MinMaxCoords minmax_coords_copy;
+    minmax_coords_copy.update(cities_copy);
+    const auto [min_x, max_x, min_y, max_y] = minmax_coords_copy.value();
+    auto mid_x{(max_x + min_x)/2}, mid_y{(max_y + min_y)/2};
+    // Define a vector of pairs to hold point coordinates
+    std::vector<std::pair<sf::Vector2f, sf::Vector2f>> linePoints = {
+        {{min_x, mid_y}, {max_x, mid_y}},
+        {{mid_x, min_y}, {mid_x, max_y}},
+        {{mid_x/2, min_y}, {mid_x/2, max_y}},
+        {{mid_x - mid_x/2, min_y}, {mid_x - mid_x/2, max_y}},
+        {{mid_x + mid_x/2, min_y}, {mid_x + mid_x/2, max_y}},
+        {{min_x, mid_y - mid_y/2}, {max_x, mid_y - mid_y/2}},
+        {{min_x, mid_y + mid_y/2}, {max_x, mid_y + mid_y/2}},
+    };
 
     sf::Clock clock;
     sf::Font font;
@@ -424,6 +513,24 @@ void drawPath(const Indices_t& path, const Cities_t& cities, bool show_coords,
 
         window.clear(sf::Color::White); // Clear the window
         window.setTitle(title);
+
+        // Draw each line segment
+        int change_color{0};
+        for (const auto& line : linePoints) {
+            sf::VertexArray lineSegment(sf::Lines, 2);
+            lineSegment[0].position = line.first;
+            lineSegment[1].position = line.second;
+            if (change_color < 2) {
+                lineSegment[0].color = sf::Color::Black;
+                lineSegment[1].color = sf::Color::Black;
+            } else {
+                lineSegment[0].color = sf::Color::Magenta;
+                lineSegment[1].color = sf::Color::Magenta;
+            }
+
+            window.draw(lineSegment);
+            ++change_color;
+        }
 
         // for (const auto& point : points) {
         //     sf::CircleShape marker(5); // Small circle with radius 5 pixels
