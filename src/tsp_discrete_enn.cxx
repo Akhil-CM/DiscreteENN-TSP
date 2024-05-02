@@ -50,6 +50,7 @@ void parseCities(Cities_t& cities, const std::string& filename)
             ++line_count;
             std::istringstream line_stream{ line };
             line_stream >> line_num >> x >> y;
+            // utils::printInfoFmt("The coords #%i are (%f, %f)", "parseCities", line_num, x, y);
             City city(-1, x, y);
             cities.push_back(city);
         }
@@ -139,10 +140,11 @@ void createStack(const Cities_t& cities, Cities_t& stack, int& layers)
     CityLayers_t city_layers;
     MinMaxCoords minmax_coords;
     minmax_coords.update(cities);
-    const auto [min_x, max_x, min_y, max_y] = minmax_coords.value();
-    const auto [min_coord, max_coord] = minmax_coords.minmax();
-    min_x = min_y = static_cast<Value_t>(0);
-    max_x = max_y = max_coord;
+    // const auto [min_x, max_x, min_y, max_y] = minmax_coords.value();
+    // const auto [min_coord, max_coord] = minmax_coords.minmax();
+    // min_x = min_y = static_cast<Value_t>(0);
+    // min_x = min_y = min_coord;
+    // max_x = max_y = max_coord;
     const auto [cities_added, depth] =
         createCityLayers(cities, city_layers, minmax_coords, 1);
     if (static_cast<std::size_t>(cities_added) != num_cities) {
@@ -463,7 +465,8 @@ void drawPath(const Indices_t& path, const Cities_t& cities, bool draw_coords,
     minmax_coords.update(cities);
     [[maybe_unused]] const auto [min_coord, max_coord] = minmax_coords.minmax();
     const auto [min_x, max_x, min_y, max_y] = minmax_coords.value();
-    min_x = min_y = static_cast<Value_t>(0);
+    // min_x = min_y = static_cast<Value_t>(0);
+    min_x = min_y = min_coord;
     max_x = max_y = max_coord;
     // sf::RenderWindow window(sf::VideoMode(minmax_coords.max_x,
     //                                       minmax_coords.max_y),
@@ -619,8 +622,9 @@ void savePath(const Indices_t& path, const Cities_t& cities, bool draw_coords,
     minmax_coords.update(cities);
     [[maybe_unused]] const auto [min_coord, max_coord] = minmax_coords.minmax();
     const auto [min_x, max_x, min_y, max_y] = minmax_coords.value();
-    min_x = min_y = static_cast<Value_t>(0);
-    max_x = max_y = max_coord;
+    // min_x = min_y = static_cast<Value_t>(0);
+    // min_x = min_y = min_coord;
+    // max_x = max_y = max_coord;
 
     sf::RenderWindow window(sf::VideoMode(max_coord + margin_size, max_coord + margin_size),
                             "TSP Route. Press Any Key to Close", sf::Style::None);
@@ -726,6 +730,7 @@ void savePath(const Indices_t& path, const Cities_t& cities, bool draw_coords,
         marker.setPosition(
             city.x,
             city.y); // Adjust position to center the marker on the vertex
+        // utils::printInfoFmt("The coords are (id : %i, %f, %f)", "savePath", city.id, city.x, city.y);
 
         window.draw(marker);
     }
