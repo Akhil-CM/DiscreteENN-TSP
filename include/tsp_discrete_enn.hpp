@@ -5,6 +5,8 @@
 #define TSP_DRAW
 
 #define TSP_DEBUG_PRINT 0
+#define TSP_DRAW_DISPLAY 0
+#define TSP_DRAW_SAVE 0
 #define TSP_ERROR 0
 
 #define TSP_TIME 2
@@ -22,7 +24,10 @@
 #include <utility>
 #include <chrono>
 
+#if TSP_DRAW_DISPLAY > 0
 #include <thread>
+#endif
+
 #if TSP_DEBUG_PRINT > 0
 #include <thread>
 #endif
@@ -55,7 +60,7 @@ typedef std::size_t Index_t;
 constexpr Value_t VALUE_ZERO{ Value_t{ 0 } };
 constexpr Value_t VALUE_ONE_NEG{ Value_t{ -1 } };
 
-constexpr Index_t Num_Nodes_Initial{ 2 };
+constexpr Index_t Num_Nodes_Initial{ 3 };
 constexpr bool Validation_Intersection{ true };
 constexpr bool Intersection_Recursive{ true };
 
@@ -112,8 +117,11 @@ template <> inline bool utils::MatchItem<Node_t>::operator()(const Node_t& node)
     return (node->id == m_item->id);
 }
 
-void drawPath(const Indices_t& path, const Cities_t& cities, bool show_coords,
+void drawPath(const Indices_t& path, const Cities_t& cities, bool draw_coords,
               const std::string& title, float close_time = 3600.0,
+              int highlight = -1, int highlight_line = -1);
+void savePath(const Indices_t& path, const Cities_t& cities, bool draw_coords,
+              const std::string& title,
               int highlight = -1, int highlight_line = -1);
 
 class MinMaxCoords
@@ -149,6 +157,11 @@ public:
     auto value() const
     {
         return std::tie(min_x, max_x, min_y, max_y);
+    }
+
+    auto valueConst() const
+    {
+        return std::make_tuple(min_x, max_x, min_y, max_y);
     }
 
     void reset()
@@ -278,6 +291,22 @@ public:
     bool& validIntersectCK()
     {
         return m_validIntersectCK;
+    }
+    bool& shuffleCities()
+    {
+        return m_shuffleCities;
+    }
+    bool& draw()
+    {
+        return m_draw;
+    }
+    bool& drawFailed()
+    {
+        return m_drawFailed;
+    }
+    bool& drawCoords()
+    {
+        return m_drawCoords;
     }
 
     Index_t properIndex(int index) const
@@ -1081,29 +1110,29 @@ public:
         return false;
     }
 
-    void initializePath()
+    void initialize()
     {
         const Index_t num_cities = m_cities.size();
-        assert("[Error] (initializePath): given number of cities less than 1" &&
+        assert("[Error] (initialize): given number of cities less than 1" &&
                (num_cities > 0));
-        m_path.clear();
-        m_path.reserve(num_cities);
         if (num_cities < 4) {
             for (Index_t idx{ 0 }; idx != num_cities; ++idx) {
                 m_path.push_back(idx);
             }
             return;
         }
-        // m_stack.reserve(num_cities);
+        m_stack.reserve(num_cities);
         [[maybe_unused]] const Index_t end{ num_cities - 1 };
         for (Index_t idx{ 0 }; idx != num_cities; ++idx) {
             m_stack.push_back(end - idx);
             // m_stack.push_back(idx);
             // m_stack.insert(idx);
         }
+        m_path.clear();
+        m_path.reserve(num_cities);
     }
 
-    void constructPath()
+    void constructInitialPath()
     {
         if (m_initialSize < 1) {
             m_initialSize = Num_Nodes_Initial;
@@ -1137,7 +1166,6 @@ public:
         int loop_count{ 0 };
         int loop_check = 1e4;
         float loop_time{ 10.0 };
-        std::chrono::seconds sleep_time{ 10 };
 #endif
         typedef std::uniform_int_distribution<int> distrib_t;
         [[maybe_unused]] const Index_t num_cities = m_cities.size();
@@ -1196,13 +1224,21 @@ public:
                 }
             }
 #endif
-            // if (pos == 21)
-            // {
-            //     std::chrono::seconds sleep_time{ 5 };
-            //     m_cities[pos].print();
-            //     drawPath(m_path, m_cities, false, m_name, 5, pos);
-            //     std::this_thread::sleep_for(sleep_time);
-            // }
+
+#if TSP_DRAW_DISPLAY > 0
+            {
+                m_cities[pos].print();
+                drawPath(m_path, m_cities, false, m_name, 5, pos);
+                std::chrono::seconds sleep_time{ 5 };
+                std::this_thread::sleep_for(sleep_time);
+            }
+#endif
+#if TSP_DRAW_SAVE > 0
+            {
+                m_cities[pos].print();
+                savePath(m_path, m_cities, false, m_name, pos);
+            }
+#endif
 
             const auto [idx_prev, idx_next] = getNeigbhours(idx_added);
             const Index_t pos_start{ m_path[idx_added] };
@@ -1234,14 +1270,23 @@ public:
                     erased.opt() = erased.has_value() ? std::min(erased.value(), erased_tmp.value()) : erased_tmp.opt();
                 }
             }
-            // if (pos == 21)
-            // if (erased.has_value())
-            // {
-            //     std::chrono::seconds sleep_time{ 5 };
-            //     m_cities[pos].print();
-            //     drawPath(m_path, m_cities, true, m_name, 5, erased.value());
-            //     std::this_thread::sleep_for(sleep_time);
-            // }
+
+#if TSP_DRAW_DISPLAY > 0
+            if (erased.has_value())
+            {
+                m_cities[pos].print();
+                drawPath(m_path, m_cities, false, m_name, 5, erased.value());
+                std::chrono::seconds sleep_time{ 5 };
+                std::this_thread::sleep_for(sleep_time);
+            }
+#endif
+#if TSP_DRAW_SAVE > 0
+            if (erased.has_value())
+            {
+                m_cities[pos].print();
+                savePath(m_path, m_cities, false, m_name, erased.value());
+            }
+#endif
 
 #if TSP_DEBUG_PRINT > 1
             if (checkIntersectPath()) {
@@ -1362,6 +1407,10 @@ private:
     bool m_rmIntersectRecurse{ Intersection_Recursive };
     bool m_validIntersectCK{ Validation_Intersection };
     bool m_fromScratch{ false };
+    bool m_shuffleCities{ false };
+    bool m_draw{ false };
+    bool m_drawFailed{ false };
+    bool m_drawCoords{ false };
     int m_initialSize{ Num_Nodes_Initial };
     std::string m_name;
     std::string m_pattern;

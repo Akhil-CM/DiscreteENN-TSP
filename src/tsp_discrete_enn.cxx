@@ -2,6 +2,8 @@
 
 #include "tsp_discrete_enn.hpp"
 
+#include <SFML/Window/WindowStyle.hpp>
+#include <filesystem>
 #include <fstream>
 #include <sstream>
 
@@ -131,6 +133,7 @@ auto createCityLayers(const Cities_t& cities, CityLayers_t& city_layers,
 
 void createStack(const Cities_t& cities, Cities_t& stack, int& layers)
 {
+    stack.clear();
     const std::size_t num_cities = cities.size();
     stack.reserve(static_cast<std::size_t>(num_cities));
     CityLayers_t city_layers;
@@ -228,7 +231,7 @@ void createStack(const Cities_t& cities, Cities_t& stack, int parts)
     max_x = max_y = max_coord;
     Value_t mid_x = (min_x + max_x) / 2.0;
     Value_t mid_y = (min_y + max_y) / 2.0;
-    Cities_t quadrants[parts];
+    Cities_t quadrants[4];
     for (const City& coord : cities) {
         if (coord.x <= mid_x && coord.y <= mid_y)
             quadrants[0].push_back(coord);
@@ -406,6 +409,30 @@ void fitPointsInWindow(Cities_t& cities, const sf::Vector2u& window_size,
     }
 }
 
+void fitPointsInWindow(std::vector<std::pair<sf::Vector2f, sf::Vector2f>>& lines, const sf::Vector2u& window_size,
+                       const MinMaxCoords& minmax_coords, Value_t margin)
+{
+    if (lines.empty())
+        return; // Check if the vector is not empty
+
+    const auto [min_x, max_x, min_y, max_y] = minmax_coords.value();
+
+    Value_t width{ max_x - min_x };
+    Value_t height{ max_y - min_y };
+    // Calculate scale factors for x and y to fit the plot within the window, considering margins
+    Value_t scaleX = (window_size.x - 2 * margin) / width;
+    Value_t scaleY = (window_size.y - 2 * margin) / height;
+
+    // Apply scale and translation to the points
+    for (auto& line : lines) {
+        auto& [point1, point2] = line;
+        point1.x = (point1.x - min_x) * scaleX + margin;
+        point1.y = (point1.y - min_y) * scaleY + margin;
+        point2.x = (point2.x - min_x) * scaleX + margin;
+        point2.y = (point2.y - min_y) * scaleY + margin;
+    }
+}
+
 void fitPointsInWindow(MinMaxCoords& minmax_coords_copy, const sf::Vector2u& window_size,
                        Value_t margin)
 {
@@ -424,16 +451,20 @@ void fitPointsInWindow(MinMaxCoords& minmax_coords_copy, const sf::Vector2u& win
     max_y_copy = (max_y_copy - min_y_copy) * scaleY + margin;
 }
 
-void drawPath(const Indices_t& path, const Cities_t& cities, bool show_coords,
+void drawPath(const Indices_t& path, const Cities_t& cities, bool draw_coords,
               const std::string& title, float close_time, int highlight, int)
 {
     // Get the current desktop video mode
+    const Value_t margin_size = 50;
     [[maybe_unused]] sf::VideoMode desktopMode =
         sf::VideoMode::getDesktopMode();
     // Create a full-screen window using the current desktop resolution
     MinMaxCoords minmax_coords;
     minmax_coords.update(cities);
     [[maybe_unused]] const auto [min_coord, max_coord] = minmax_coords.minmax();
+    const auto [min_x, max_x, min_y, max_y] = minmax_coords.value();
+    min_x = min_y = static_cast<Value_t>(0);
+    max_x = max_y = max_coord;
     // sf::RenderWindow window(sf::VideoMode(minmax_coords.max_x,
     //                                       minmax_coords.max_y),
     //                         "TSP Route. Press Any Key to Close");
@@ -443,16 +474,18 @@ void drawPath(const Indices_t& path, const Cities_t& cities, bool show_coords,
     // sf::RenderWindow window(sf::VideoMode(800, 600), "TSP Route. Press Any Key to Close", sf::Style::Fullscreen);
     sf::RenderWindow window(desktopMode, "TSP Route. Press Any Key to Close",
                             sf::Style::Fullscreen);
-    // sf::RenderWindow window(sf::VideoMode(max_coord + 50, max_coord + 50),
+    // sf::RenderWindow window(sf::VideoMode(max_coord + margin_size, max_coord + margin_size),
     //                         "TSP Route. Press Any Key to Close");
+    // sf::RenderWindow window(sf::VideoMode(max_coord + margin_size, max_coord + margin_size),
+    //                         "TSP Route. Press Any Key to Close", sf::Style::Fullscreen);
 
     // Main loop
     VectSF_t points;
     points.reserve(path.size());
     path2SFVector(path, cities, points);
-    fitPointsInWindow(points, window.getSize(), minmax_coords, 50);
+    fitPointsInWindow(points, window.getSize(), minmax_coords, margin_size);
     Cities_t cities_copy = cities;
-    fitPointsInWindow(cities_copy, window.getSize(), minmax_coords, 50);
+    fitPointsInWindow(cities_copy, window.getSize(), minmax_coords, margin_size);
     sf::ConvexShape polygon;
     polygon.setPointCount(points.size());
     for (size_t i = 0; i < points.size(); ++i) {
@@ -467,13 +500,9 @@ void drawPath(const Indices_t& path, const Cities_t& cities, bool show_coords,
     // const auto [min_x, max_x, min_y, max_y] = minmax_coords_copy.value();
     // min_x = min_y = static_cast<Value_t>(0);
     // max_x = max_y = max_coord;
-    // fitPointsInWindow(minmax_coords_copy, window.getSize(), 50);
-    MinMaxCoords minmax_coords_copy;
-    minmax_coords_copy.update(cities_copy);
-    const auto [min_x, max_x, min_y, max_y] = minmax_coords_copy.value();
     auto mid_x{(max_x + min_x)/2}, mid_y{(max_y + min_y)/2};
     // Define a vector of pairs to hold point coordinates
-    std::vector<std::pair<sf::Vector2f, sf::Vector2f>> linePoints = {
+    std::vector<std::pair<sf::Vector2f, sf::Vector2f>> line_points = {
         {{min_x, mid_y}, {max_x, mid_y}},
         {{mid_x, min_y}, {mid_x, max_y}},
         {{mid_x/2, min_y}, {mid_x/2, max_y}},
@@ -482,6 +511,7 @@ void drawPath(const Indices_t& path, const Cities_t& cities, bool show_coords,
         {{min_x, mid_y - mid_y/2}, {max_x, mid_y - mid_y/2}},
         {{min_x, mid_y + mid_y/2}, {max_x, mid_y + mid_y/2}},
     };
+    fitPointsInWindow(line_points, window.getSize(), minmax_coords, margin_size);
 
     sf::Clock clock;
     sf::Font font;
@@ -516,7 +546,7 @@ void drawPath(const Indices_t& path, const Cities_t& cities, bool show_coords,
 
         // Draw each line segment
         int change_color{0};
-        for (const auto& line : linePoints) {
+        for (const auto& line : line_points) {
             sf::VertexArray lineSegment(sf::Lines, 2);
             lineSegment[0].position = line.first;
             lineSegment[1].position = line.second;
@@ -542,12 +572,13 @@ void drawPath(const Indices_t& path, const Cities_t& cities, bool show_coords,
         //     window.draw(marker);
         // }
         for (const City& city : cities_copy) {
-            if (show_coords) {
+            const auto color = city.on_stack ? sf::Color::Red : sf::Color::Blue;
+            if (draw_coords or (city.id == highlight)) {
                 sf::Text label;
                 label.setFont(font); // Set the font
                 label.setString(std::to_string(
                     city.id)); // Set the point's ID as the label text
-                label.setCharacterSize(14); // Set the character size
+                label.setCharacterSize(24); // Set the character size
                 label.setFillColor(sf::Color::Black); // Set the text color
                 if (city.id == highlight) {
                     label.setFillColor(sf::Color::Magenta);
@@ -559,12 +590,7 @@ void drawPath(const Indices_t& path, const Cities_t& cities, bool show_coords,
             }
 
             sf::CircleShape marker(5); // Small circle with radius 5 pixels
-            if (city.on_stack) {
-                marker.setFillColor(
-                    sf::Color::Green); // Use a contrasting color
-            } else {
-                marker.setFillColor(sf::Color::Blue); // Use a contrasting color
-            }
+            marker.setFillColor(color); // Use a contrasting color
             if (city.id == highlight) {
                 marker.setFillColor(sf::Color::Magenta);
             }
@@ -579,6 +605,143 @@ void drawPath(const Indices_t& path, const Cities_t& cities, bool show_coords,
         window.display(); // Display what was drawn
     }
 }
+
+int images_count{1};
+void savePath(const Indices_t& path, const Cities_t& cities, bool draw_coords,
+              const std::string& title, int highlight, int)
+{
+    // Get the current desktop video mode
+    const Value_t margin_size = 50;
+    [[maybe_unused]] sf::VideoMode desktopMode =
+        sf::VideoMode::getDesktopMode();
+    // Create a full-screen window using the current desktop resolution
+    MinMaxCoords minmax_coords;
+    minmax_coords.update(cities);
+    [[maybe_unused]] const auto [min_coord, max_coord] = minmax_coords.minmax();
+    const auto [min_x, max_x, min_y, max_y] = minmax_coords.value();
+    min_x = min_y = static_cast<Value_t>(0);
+    max_x = max_y = max_coord;
+
+    sf::RenderWindow window(sf::VideoMode(max_coord + margin_size, max_coord + margin_size),
+                            "TSP Route. Press Any Key to Close", sf::Style::None);
+
+    // Main loop
+    VectSF_t points;
+    points.reserve(path.size());
+    path2SFVector(path, cities, points);
+    // fitPointsInWindow(points, window.getSize(), minmax_coords, margin_size);
+    Cities_t cities_copy = cities;
+    // fitPointsInWindow(cities_copy, window.getSize(), minmax_coords, margin_size);
+    sf::ConvexShape polygon;
+    polygon.setPointCount(points.size());
+    for (size_t i = 0; i < points.size(); ++i) {
+        polygon.setPoint(i, points[i]);
+    }
+
+    polygon.setFillColor(sf::Color::Transparent); // Transparent fill
+    polygon.setOutlineThickness(2); // Line thickness
+    polygon.setOutlineColor(sf::Color::Red); // Line color
+
+    // auto minmax_coords_copy = minmax_coords;
+    // const auto [min_x, max_x, min_y, max_y] = minmax_coords_copy.value();
+    // min_x = min_y = static_cast<Value_t>(0);
+    // max_x = max_y = max_coord;
+    auto mid_x{(max_x + min_x)/2}, mid_y{(max_y + min_y)/2};
+    // Define a vector of pairs to hold point coordinates
+    std::vector<std::pair<sf::Vector2f, sf::Vector2f>> line_points = {
+        {{min_x, mid_y}, {max_x, mid_y}},
+        {{mid_x, min_y}, {mid_x, max_y}},
+        {{mid_x/2, min_y}, {mid_x/2, max_y}},
+        {{mid_x - mid_x/2, min_y}, {mid_x - mid_x/2, max_y}},
+        {{mid_x + mid_x/2, min_y}, {mid_x + mid_x/2, max_y}},
+        {{min_x, mid_y - mid_y/2}, {max_x, mid_y - mid_y/2}},
+        {{min_x, mid_y + mid_y/2}, {max_x, mid_y + mid_y/2}},
+    };
+    // fitPointsInWindow(line_points, window.getSize(), minmax_coords, margin_size);
+
+    sf::Clock clock;
+    sf::Font font;
+    font.loadFromFile("/usr/share/fonts/TTF/Roboto-Regular.ttf");
+    const bool save_image{true};
+    const std::string& image_filename{ "./Output/Images/" + title + "/DrawPlane%d.png" };
+    // int image_count{1};
+    if (save_image) {
+        const auto image_dir = utils::getCleanPath(utils::stdfs::path(image_filename).parent_path());
+        if (not utils::stdfs::is_directory(image_dir)) {
+            utils::stdfs::create_directories(image_dir);
+        }
+    }
+    // Activate the window to allow off-screen rendering
+    window.setActive(true);
+    window.clear(sf::Color::White); // Clear the window
+    window.setTitle(title);
+
+    // Draw each line segment
+    int change_color{0};
+    for (const auto& line : line_points) {
+        sf::VertexArray lineSegment(sf::Lines, 2);
+        lineSegment[0].position = line.first;
+        lineSegment[1].position = line.second;
+        if (change_color < 2) {
+            lineSegment[0].color = sf::Color::Black;
+            lineSegment[1].color = sf::Color::Black;
+        } else {
+            lineSegment[0].color = sf::Color::Magenta;
+            lineSegment[1].color = sf::Color::Magenta;
+        }
+
+        window.draw(lineSegment);
+        ++change_color;
+    }
+
+    // for (const auto& point : points) {
+    //     sf::CircleShape marker(5); // Small circle with radius 5 pixels
+    //     marker.setFillColor(sf::Color::Blue); // Use a contrasting color
+    //     marker.setPosition(
+    //         point.x,
+    //         point.y); // Adjust position to center the marker on the vertex
+
+    //     window.draw(marker);
+    // }
+    for (const City& city : cities_copy) {
+        const auto color = city.on_stack ? sf::Color::Red : sf::Color::Blue;
+        if (draw_coords or (city.id == highlight)) {
+            sf::Text label;
+            label.setFont(font); // Set the font
+            label.setString(std::to_string(
+                city.id)); // Set the point's ID as the label text
+            label.setCharacterSize(42); // Set the character size
+            label.setFillColor(sf::Color::Black); // Set the text color
+            label.setPosition(city.x + 10,
+                              city.y -
+                                  10); // Position the label near the marker
+            window.draw(label); // Draw the label
+        }
+
+        sf::CircleShape marker(5); // Small circle with radius 5 pixels
+        marker.setFillColor(color); // Use a contrasting color
+        if (city.id == highlight) {
+            marker.setFillColor(sf::Color::Magenta);
+        }
+        marker.setPosition(
+            city.x,
+            city.y); // Adjust position to center the marker on the vertex
+
+        window.draw(marker);
+    }
+    window.draw(polygon); // Draw the polygon
+
+    sf::Texture texture;
+    texture.create(window.getSize().x, window.getSize().y);
+    texture.update(window);
+    sf::Image screenshot = texture.copyToImage();
+
+    if (!screenshot.saveToFile(utils::stringFmt(image_filename, images_count))) {
+        std::cerr << "Failed to save screenshot." << std::endl;
+    }
+    ++images_count;
+}
+
 
 bool readDistances(const std::string& filename, TSPInfoVect_t& infos)
 {

@@ -16,12 +16,10 @@ const std::string& Data_Filename_berlin{ "berlin52.tsp" };
 const stdfs::path& Output_Path{ "Output" };
 
 int runPipelineSingle(TSPInfo& info, const stdfs::path& data_path,
-                      std::default_random_engine& rng, bool draw,
-                      bool draw_failed, bool show_coords, bool randomize);
+                      std::default_random_engine& rng, DiscreteENN_TSP& enn_tsp);
 int runPipelineDir(TSPInfoVect_t& infos, const TSPInfoVect_t& opt_infos,
                    const stdfs::path& data_path,
-                   std::default_random_engine& rng, bool draw, bool draw_failed,
-                   bool show_coords, bool randomize);
+                   std::default_random_engine& rng, DiscreteENN_TSP& enn_tsp);
 
 int main(int argc, char** argv)
 {
@@ -60,6 +58,11 @@ int main(int argc, char** argv)
                                                 args) };
     const bool randomize{ utils::vectContains(std::string{ "--random" },
                                               args) };
+    DiscreteENN_TSP enn_tsp;
+    enn_tsp.draw() = draw_path;
+    enn_tsp.drawFailed() = draw_failed;
+    enn_tsp.drawCoords() = draw_coords;
+    enn_tsp.shuffleCities() = randomize;
 
     std::string Data_Filename{ Data_Filename_berlin };
     stdfs::path Data_Path{ utils::getCleanPath(stdfs::current_path() /
@@ -85,8 +88,7 @@ int main(int argc, char** argv)
     if (single_input) {
         stdfs::path Data_FilePath = Data_Path / stdfs::path(Data_Filename);
         TSPInfo info{};
-        runs_failed = runPipelineSingle(info, Data_FilePath, rng, draw_path,
-                                        draw_failed, draw_coords, randomize);
+        runs_failed = runPipelineSingle(info, Data_FilePath, rng, enn_tsp);
         if (runs_failed == 0) {
             infos.push_back(info);
         } else {
@@ -96,8 +98,7 @@ int main(int argc, char** argv)
         }
     } else {
         runs_failed = runPipelineDir(infos, optimal_infos, Data_Path, rng,
-                                     draw_path, draw_failed, draw_coords,
-                                     randomize);
+                                     enn_tsp);
     }
     if (runs_failed != 0) {
         utils::printErr("Runs failed: " + std::to_string(runs_failed) +
@@ -203,8 +204,7 @@ int main(int argc, char** argv)
 
 int runPipelineDir(TSPInfoVect_t& infos, const TSPInfoVect_t& opt_infos,
                    const stdfs::path& data_path,
-                   std::default_random_engine& rng, bool draw, bool draw_failed,
-                   bool show_coords, bool randomize)
+                   std::default_random_engine& rng, DiscreteENN_TSP& enn_tsp)
 {
     if (not stdfs::is_directory(data_path)) {
         utils::printErr("provided path " + data_path.string() +
@@ -235,8 +235,7 @@ int runPipelineDir(TSPInfoVect_t& infos, const TSPInfoVect_t& opt_infos,
         //     utils::printInfo("skipping file pr2392 because of long run time.", "runPipelineDir");
         //     continue;;
         // }
-        if (runPipelineSingle(info, filepath, rng, draw, draw_failed,
-                              show_coords, randomize) != 0) {
+        if (runPipelineSingle(info, filepath, rng, enn_tsp) != 0) {
             utils::printErr("pipeline failed for the path " + filepath.string(),
                             "runPipelineDir");
             ++runs_failed;
@@ -249,8 +248,7 @@ int runPipelineDir(TSPInfoVect_t& infos, const TSPInfoVect_t& opt_infos,
 }
 
 int runPipelineSingle(TSPInfo& info, const stdfs::path& data_path,
-                      std::default_random_engine& rng, bool draw,
-                      bool draw_failed, bool show_coords, bool randomize)
+                      std::default_random_engine& rng, DiscreteENN_TSP& enn_tsp)
 {
     utils::printInfo("Running algorithm for " + data_path.string(),
                      "runPipelineSingle");
@@ -259,7 +257,6 @@ int runPipelineSingle(TSPInfo& info, const stdfs::path& data_path,
     // -------------------------------------------
     // Create and setup Discrete ENN Solver
     // -------------------------------------------
-    DiscreteENN_TSP enn_tsp;
     enn_tsp.name() = filename;
     Cities_t& cities{ enn_tsp.cities() };
     Indices_t& path = enn_tsp.path();
@@ -270,7 +267,7 @@ int runPipelineSingle(TSPInfo& info, const stdfs::path& data_path,
         // -------------------------------------------
         Cities_t cities_tmp;
         parseCities(cities_tmp, data_path.string());
-        if (randomize) {
+        if (enn_tsp.shuffleCities()) {
             std::shuffle(cities_tmp.begin(), cities_tmp.end(), rng);
         }
         const int num_cities = cities_tmp.size();
@@ -300,20 +297,19 @@ int runPipelineSingle(TSPInfo& info, const stdfs::path& data_path,
     const std::size_t num_cities = cities.size();
 
     // -------------------------------------------
-    // Initialize Path
+    // Initialize
     // -------------------------------------------
-    enn_tsp.initializePath();
+    enn_tsp.initialize();
     if (path.size() == static_cast<std::size_t>(num_cities)) {
         std::printf(
             "[Info]: Algorithm complete. Only %zu number of cities provided.",
             num_cities);
         return 0;
     }
-
     // -------------------------------------------
     // Construct Path
     // -------------------------------------------
-    enn_tsp.constructPath();
+    enn_tsp.constructInitialPath();
 
     {
 #if (TSP_DEBUG_PRINT > 0)
@@ -347,8 +343,8 @@ int runPipelineSingle(TSPInfo& info, const stdfs::path& data_path,
     TimePoint_t end_time = std::chrono::steady_clock::now();
     if (not success) {
         std::cerr << "[Error] (runPipelineSingle): Discrete ENN run failed.\n";
-        if (draw_failed) {
-            drawPath(path, cities, show_coords, filename);
+        if (enn_tsp.drawFailed()) {
+            drawPath(path, cities, enn_tsp.drawCoords(), filename);
         }
         return 1;
     }
@@ -385,8 +381,8 @@ int runPipelineSingle(TSPInfo& info, const stdfs::path& data_path,
     std::cout << "[Info] (runPipelineSingle): Total distance is : " << dist << '\n';
     std::cout << utils::Line_Str + "\n";
 
-    if (draw) {
-        drawPath(path, cities, show_coords, filename);
+    if (enn_tsp.draw()) {
+        drawPath(path, cities, enn_tsp.drawCoords(), filename);
     }
     utils::printInfo("Finished algorithm for " + data_path.string(),
                      "runPipelineSingle");

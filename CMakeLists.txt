@@ -96,3 +96,23 @@ add_custom_command(
     OUTPUT ${CMAKE_BINARY_DIR}/compile_commands.json
     COMMAND ${CMAKE_COMMAND} -B${CMAKE_BINARY_DIR} -S${CMAKE_SOURCE_DIR}
     )
+
+find_package(Git QUIET)
+if(GIT_FOUND AND EXISTS "${PROJECT_SOURCE_DIR}/.git")
+    add_custom_target(generate_git_commit ALL
+        DEPENDS "${CMAKE_BINARY_DIR}/last_git_commit.txt")
+
+    add_custom_command(OUTPUT "${CMAKE_BINARY_DIR}/last_git_commit.txt"
+        COMMAND ${GIT_EXECUTABLE} log -n 2 > "${CMAKE_BINARY_DIR}/last_git_commit.txt" 2>&1)
+endif()
+
+# find_program(BASH bash HINTS /bin)
+# find_package(Git QUIET)
+# if(GIT_FOUND AND EXISTS "${PROJECT_SOURCE_DIR}/.git")
+#     add_custom_target(generate_git_commit ALL
+#         DEPENDS "${CMAKE_BINARY_DIR}/last_git_commit.txt")
+
+#     add_custom_command(OUTPUT "${CMAKE_BINARY_DIR}/last_git_commit.txt"
+#         COMMAND ${CMAKE_COMMAND} -E env ${BASH} -c "${GIT_EXECUTABLE} log -n 2 > ${CMAKE_BINARY_DIR}/last_git_commit.txt 2>&1")
+#         VERBATIM)
+# endif()
