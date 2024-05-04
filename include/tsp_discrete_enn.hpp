@@ -68,10 +68,20 @@ constexpr bool Intersection_Recursive{ true };
 inline bool global_print{ false };
 #endif
 
+typedef std::vector<Index_t> Indices_t;
+typedef std::optional<Index_t> IndexOpt_t;
+template <typename T> using IndexExp_t = utils::Expected<Index_t, T>;
+// typedef Indices_t Stack_t;
+// typedef std::set<Index_t> Stack_t;
+// typedef std::set<Index_t, std::greater<Index_t>> Stack_t;
+
 struct City
 {
     bool on_stack{false};
     int id, layer{-1};
+    int id_prev{-1};
+    int id_next{-1};
+    int x_cell{-1}, y_cell{-1};
     Value_t x, y, cost{VALUE_ZERO};
 
     City() = default;
@@ -99,13 +109,8 @@ struct City
 typedef std::vector<City> Cities_t;
 typedef Cities_t::iterator Node_t;
 typedef std::vector<Node_t> Path_t;
-typedef std::map<int, Cities_t> CityLayers_t;
-typedef std::vector<Index_t> Indices_t;
-typedef std::optional<Index_t> IndexOpt_t;
-template <typename T> using IndexExp_t = utils::Expected<Index_t, T>;
-typedef Indices_t Stack_t;
-// typedef std::set<Index_t> Stack_t;
-// typedef std::set<Index_t, std::greater<Index_t>> Stack_t;
+typedef std::map<int, Indices_t> CityLayers_t;
+typedef CityLayers_t Stack_t;
 
 template <> inline bool utils::MatchItem<City>::operator()(const City& city)
 {
@@ -283,6 +288,10 @@ public:
     int& initialSize()
     {
         return m_initialSize;
+    }
+    int& layers()
+    {
+        return m_layers;
     }
     bool& rmIntersectRecurse()
     {
@@ -1412,6 +1421,7 @@ private:
     bool m_drawFailed{ false };
     bool m_drawCoords{ false };
     int m_initialSize{ Num_Nodes_Initial };
+    int m_layers{ -1 };
     std::string m_name;
     std::string m_pattern;
     Cities_t m_cities;
@@ -1421,12 +1431,9 @@ private:
 
 void parseCities(Cities_t& cities, const std::string& filename);
 
-auto createCityLayers(const Cities_t& cities, CityLayers_t& city_layers,
-                      const MinMaxCoords& minmax_coords, int depth);
+int createStack(Stack_t& stack, const Cities_t& cities, const MinMaxCoords& minmax_coords);
 
-void createStack(const Cities_t& cities, Cities_t& stack, int& layers);
-
-void createStack(const Cities_t& cities, Cities_t& stack);
+void makeGridInfo(Cities_t& cities, int depth, const MinMaxCoords& minmax_coords);
 
 struct TSPInfo
 {

@@ -260,49 +260,63 @@ int runPipelineSingle(TSPInfo& info, const stdfs::path& data_path,
     enn_tsp.name() = filename;
     Cities_t& cities{ enn_tsp.cities() };
     Indices_t& path = enn_tsp.path();
+    Stack_t& stack = enn_tsp.stack();
 
-    {
-        // -------------------------------------------
-        // Parse cities
-        // -------------------------------------------
-        Cities_t cities_tmp;
-        parseCities(cities_tmp, data_path.string());
-        if (enn_tsp.shuffleCities()) {
-            std::shuffle(cities_tmp.begin(), cities_tmp.end(), rng);
-        }
-        const int num_cities = cities_tmp.size();
-
-        // -------------------------------------------
-        // Calculate layer details
-        // -------------------------------------------
-        int layers{ 0 };
-        int layers_val{ 1 };
-        while (true) {
-            ++layers;
-            layers_val *= 4;
-            if (layers_val >= num_cities)
-                break;
-        }
-        std::printf(
-            "[Info] (runPipelineSingle): Total number of layers expected %d (power of 4 : %d) for number of cities %d.\n",
-            layers, layers_val, num_cities);
-
-        // -------------------------------------------
-        // Construct Stack
-        // -------------------------------------------
-        createStack(cities_tmp, cities, layers);
-        // createStack(cities_tmp, cities);
-        std::printf("[Info] (runPipelineSingle): Total number of layers created %d.\n", layers);
+    // -------------------------------------------
+    // Parse cities
+    // -------------------------------------------
+    parseCities(cities, data_path.string());
+    if (enn_tsp.shuffleCities()) {
+        std::shuffle(cities.begin(), cities.end(), rng);
     }
-    const std::size_t num_cities = cities.size();
+    const int num_cities = cities.size();
+
+    // -------------------------------------------
+    // Calculate layer details
+    // -------------------------------------------
+    int layers{ 0 };
+    int layers_val{ 1 };
+    while (true) {
+        ++layers;
+        layers_val *= 4;
+        if (layers_val >= num_cities)
+            break;
+    }
+    utils::printInfoFmt(
+        "Total number of layers expected %d (power of 4 : %d) for number of cities %d.", "runPipelineSingle",
+        layers, layers_val, num_cities);
+
+    // -------------------------------------------
+    // Construct Stack
+    // -------------------------------------------
+    MinMaxCoords minmax_coords;
+    minmax_coords.update(cities);
+    // const auto [min_x, max_x, min_y, max_y] = minmax_coords.value();
+    // const auto [min_coord, max_coord] = minmax_coords.minmax();
+    // min_x = min_y = static_cast<Value_t>(0);
+    // min_x = min_y = min_coord;
+    // max_x = max_y = max_coord;
+    const int depth = createStack(stack, cities, minmax_coords);
+    if (depth == -1) {
+        utils::printErrFmt("createStack function failed.\nNumber of cities : %d", "runPipelineSingle", num_cities);
+        return 1;
+    }
+    enn_tsp.layers() = depth;
+    // createStack(cities_tmp, cities);
+    utils::printInfoFmt("Total number of layers created %d.", "runPipelineSingle", depth);
+
+    // -------------------------------------------
+    // Update grid info from final layer for cities
+    // -------------------------------------------
+    makeGridInfo(cities, depth, minmax_coords);
 
     // -------------------------------------------
     // Initialize
     // -------------------------------------------
     enn_tsp.initialize();
     if (path.size() == static_cast<std::size_t>(num_cities)) {
-        std::printf(
-            "[Info]: Algorithm complete. Only %zu number of cities provided.",
+        utils::printInfoFmt(
+            "Algorithm complete. Only %d number of cities provided.", "runPipelineSingle",
             num_cities);
         return 0;
     }
@@ -317,7 +331,7 @@ int runPipelineSingle(TSPInfo& info, const stdfs::path& data_path,
 #endif
         IndexExp_t<bool> erased = enn_tsp.validatePath();
         if (erased.err()) {
-            std::cerr << "[Error] (runPipelineSingle): validatePath failed\n";
+            utils::printErr("validatePath failed", "runPipelineSingle");
             return 1;
         }
 

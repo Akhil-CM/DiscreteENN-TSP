@@ -16,7 +16,7 @@
 void parseCities(Cities_t& cities, const std::string& filename)
 {
     cities.clear();
-    cities.reserve(200);
+    cities.reserve(1000);
     std::ifstream in_file{ filename };
     if (not in_file) {
         utils::printErr("Could not open " + filename + "\nExiting.",
@@ -31,6 +31,7 @@ void parseCities(Cities_t& cities, const std::string& filename)
         if (line.empty()) {
             continue;
         }
+        line = utils::trimLeft(line);
         if (line == "DIMENSION") {
             std::string::size_type pos = line.find_first_of(":");
             if (pos != std::string::npos) {
@@ -42,17 +43,16 @@ void parseCities(Cities_t& cities, const std::string& filename)
             }
             continue;
         }
-        line = utils::trimLeft(line);
         std::string word{ line.substr(
             0, line.find_first_of(utils::Whitespace_Str)) };
         start_parse = utils::isNumber(word);
         if (start_parse) {
-            ++line_count;
             std::istringstream line_stream{ line };
             line_stream >> line_num >> x >> y;
             // utils::printInfoFmt("The coords #%i are (%f, %f)", "parseCities", line_num, x, y);
-            City city(-1, x, y);
+            City city(line_count, x, y);
             cities.push_back(city);
+            ++line_count;
         }
     }
     utils::printInfo(
@@ -69,11 +69,11 @@ void parseCities(Cities_t& cities, const std::string& filename)
     }
 }
 
-auto createCityLayers(const Cities_t& cities, CityLayers_t& city_layers,
+auto makeStackLayers(const Cities_t& cities, CityLayers_t& city_layers,
                       const MinMaxCoords& minmax_coords, int depth)
 {
     if (cities.empty()) {
-        return std::make_pair(0, depth);
+        return std::make_pair(0, -1);
     }
     const auto [min_x, max_x, min_y, max_y] = minmax_coords.value();
     Value_t mid_x = (min_x + max_x) / 2.0;
@@ -100,53 +100,44 @@ auto createCityLayers(const Cities_t& cities, CityLayers_t& city_layers,
         }
         City city = cities_quadrant.back();
         cities_quadrant.pop_back();
-        city_layers[depth].push_back(city);
+        city_layers[depth].push_back(city.id);
         ++added;
     }
-    ++depth;
-    int depth_current{depth};
+    const int depth_next = depth + 1;
+    int depth_max{depth};
     {
-        auto [tmp_add, tmp_depth] = createCityLayers(
-            quadrants[0], city_layers, { min_x, mid_x, min_y, mid_y }, depth_current);
+        auto [tmp_add, tmp_depth] = makeStackLayers(
+            quadrants[0], city_layers, { min_x, mid_x, min_y, mid_y }, depth_next);
         added += tmp_add;
-        depth = std::max(tmp_depth, depth);
+        depth_max = std::max(tmp_depth, depth_max);
     }
     {
-        auto [tmp_add, tmp_depth] = createCityLayers(
-            quadrants[1], city_layers, { mid_x, max_x, min_y, mid_y }, depth_current);
+        auto [tmp_add, tmp_depth] = makeStackLayers(
+            quadrants[1], city_layers, { mid_x, max_x, min_y, mid_y }, depth_next);
         added += tmp_add;
-        depth = std::max(tmp_depth, depth);
+        depth_max = std::max(tmp_depth, depth_max);
     }
     {
-        auto [tmp_add, tmp_depth] = createCityLayers(
-            quadrants[2], city_layers, { min_x, mid_x, mid_y, max_y }, depth_current);
+        auto [tmp_add, tmp_depth] = makeStackLayers(
+            quadrants[2], city_layers, { min_x, mid_x, mid_y, max_y }, depth_next);
         added += tmp_add;
-        depth = std::max(tmp_depth, depth);
+        depth_max = std::max(tmp_depth, depth_max);
     }
     {
-        auto [tmp_add, tmp_depth] = createCityLayers(
-            quadrants[3], city_layers, { mid_x, max_x, mid_y, max_y }, depth_current);
+        auto [tmp_add, tmp_depth] = makeStackLayers(
+            quadrants[3], city_layers, { mid_x, max_x, mid_y, max_y }, depth_next);
         added += tmp_add;
-        depth = std::max(tmp_depth, depth);
+        depth_max = std::max(tmp_depth, depth_max);
     }
-    return std::make_pair(added, depth);
+    return std::make_pair(added, depth_max);
 }
 
-void createStack(const Cities_t& cities, Cities_t& stack, int& layers)
+int createStack(Stack_t& stack, const Cities_t& cities, const MinMaxCoords& minmax_coords)
 {
     stack.clear();
     const std::size_t num_cities = cities.size();
-    stack.reserve(static_cast<std::size_t>(num_cities));
-    CityLayers_t city_layers;
-    MinMaxCoords minmax_coords;
-    minmax_coords.update(cities);
-    // const auto [min_x, max_x, min_y, max_y] = minmax_coords.value();
-    // const auto [min_coord, max_coord] = minmax_coords.minmax();
-    // min_x = min_y = static_cast<Value_t>(0);
-    // min_x = min_y = min_coord;
-    // max_x = max_y = max_coord;
-    const auto [cities_added, depth] =
-        createCityLayers(cities, city_layers, minmax_coords, 1);
+    const auto& [cities_added, depth] =
+        makeStackLayers(cities, stack, minmax_coords, 1);
     if (static_cast<std::size_t>(cities_added) != num_cities) {
         const std::string& error_msg{ "number of cities in city_layers (" +
                                       std::to_string(cities_added) +
@@ -154,122 +145,25 @@ void createStack(const Cities_t& cities, Cities_t& stack, int& layers)
                                       std::to_string(num_cities) +
                                       ").\nExiting." };
         utils::printErr(error_msg, "createStack");
-        exit(EXIT_FAILURE);
+        return -1;
     }
-    layers = depth;
-    int count{ 0 };
-    for (int idx_layer{ 1 }; idx_layer != depth; ++idx_layer) {
-        const Cities_t& city_layer{ city_layers[idx_layer] };
-        const std::size_t layer_size = city_layer.size();
-        for (std::size_t idx{ 0 }; idx != layer_size; ++idx) {
-            City city = city_layer[idx];
-            city.on_stack = true;
-            city.id = count;
-            city.layer = idx_layer;
-            stack.push_back(city);
-            ++count;
-        }
-    }
-
-    const std::size_t stack_size = stack.size();
-    if (stack_size != num_cities) {
-        const std::string& error_msg{ "stack size (" +
-                                      std::to_string(stack_size) +
-                                      ") doesn't match number of cities (" +
-                                      std::to_string(num_cities) +
-                                      ").\nExiting." };
-        utils::printErr(error_msg, "createStack");
-        exit(EXIT_FAILURE);
-    }
+    return depth;
 }
 
-void createStack(const Cities_t& cities, Cities_t& stack)
+void makeGridInfo(Cities_t& cities, int depth, const MinMaxCoords& minmax_coords)
 {
-    const Index_t num_cities = cities.size();
-    stack.reserve(static_cast<std::size_t>(num_cities));
-    auto sorter = [](const City& a, const City& b) { return (std::pair{a.x, a.y} < std::pair{b.x, b.y}); };
-    auto cities_copy = cities;
-    std::sort(cities_copy.begin(), cities_copy.end(), sorter);
-    bool change{ false };
-    Index_t start{0}, end{num_cities - 1};
-    for (Index_t idx{0}; idx != num_cities; ++idx) {
-        City city;
-        if (change) {
-            city = cities_copy[end];
-            --end;
-        } else {
-            city = cities_copy[start];
-            ++start;
-        }
-        city.on_stack = true;
-        city.id = idx;
-        stack.push_back(city);
-        change = not change;
-    }
-    const std::size_t stack_size = stack.size();
-    if (stack_size != num_cities) {
-        const std::string& error_msg{ "stack size (" +
-                                      std::to_string(stack_size) +
-                                      ") doesn't match number of cities (" +
-                                      std::to_string(num_cities) +
-                                      ").\nExiting." };
-        utils::printErr(error_msg, "createStack");
-        exit(EXIT_FAILURE);
-    }
-}
-
-void createStack(const Cities_t& cities, Cities_t& stack, int parts)
-{
-    const Index_t num_cities = cities.size();
-    stack.reserve(static_cast<std::size_t>(num_cities));
-    auto sorter = [](const City& a, const City& b) { return (std::pair{a.x, a.y} < std::pair{b.x, b.y}); };
-    auto cities_copy = cities;
-    std::sort(cities_copy.begin(), cities_copy.end(), sorter);
-    MinMaxCoords minmax_coords;
-    minmax_coords.update(cities);
     const auto [min_x, max_x, min_y, max_y] = minmax_coords.value();
-    const auto [min_coord, max_coord] = minmax_coords.minmax();
-    min_x = min_y = static_cast<Value_t>(0);
-    max_x = max_y = max_coord;
-    Value_t mid_x = (min_x + max_x) / 2.0;
-    Value_t mid_y = (min_y + max_y) / 2.0;
-    Cities_t quadrants[4];
-    for (const City& coord : cities) {
-        if (coord.x <= mid_x && coord.y <= mid_y)
-            quadrants[0].push_back(coord);
-        else if (coord.x > mid_x && coord.y <= mid_y)
-            quadrants[1].push_back(coord);
-        else if (coord.x <= mid_x && coord.y > mid_y)
-            quadrants[2].push_back(coord);
-        else if (coord.x > mid_x && coord.y > mid_y)
-            quadrants[3].push_back(coord);
-    }
-
-    int count{ 0 };
-    for (int idx{ 0 }; idx != parts; ++idx) {
-        Cities_t& cities_quadrant{ quadrants[idx] };
-        if (cities_quadrant.empty()) {
-            continue;
-        }
-        City city = cities_quadrant.back();
-        cities_quadrant.pop_back();
-        city.id = count;
-        city.on_stack = true;
-        stack.push_back(city);
-        ++count;
-    }
-    const std::size_t stack_size = stack.size();
-    if (stack_size != num_cities) {
-        const std::string& error_msg{ "stack size (" +
-                                      std::to_string(stack_size) +
-                                      ") doesn't match number of cities (" +
-                                      std::to_string(num_cities) +
-                                      ").\nExiting." };
-        utils::printErr(error_msg, "createStack");
-        exit(EXIT_FAILURE);
+    const int num_cells_side = 0x01 << depth;
+    const int num_cells_total = num_cells_side * num_cells_side;
+    const Value_t step_sizeX{ (max_x - min_x)/num_cells_side };
+    const Value_t step_sizeY{ (max_y - min_y)/num_cells_side };
+    for (City& city: cities) {
+        const int x_cell = (city.x - min_x)/step_sizeX;
+        const int y_cell = (city.y - min_y)/step_sizeY;
+        city.x_cell = x_cell == num_cells_side ? num_cells_side - 1 : x_cell;
+        city.y_cell = y_cell == num_cells_side ? num_cells_side - 1 : y_cell;
     }
 }
-
 
 Value_t insertionCost(const City& new_city, const City& cityA,
                              const City& cityB)

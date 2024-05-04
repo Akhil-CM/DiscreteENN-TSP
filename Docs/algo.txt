@@ -35,3 +35,39 @@ ni element of [0, num_nodes)
 9. A new adge is created between its neighbours.
 10. Update the node cost of neighbours, check if they satisfy criterion.
 11. Compare the node cost of other nodes with the newly formed edges
+
+New Implementation 1:
+---
+1. For each city we store id of neighbours in the path.
+2. For addition of each city in a layer:
+    a. Add the node between somewhere among its children
+    b. If there are no children, then add to the current path
+3. When a node is removed:
+    a. If the node has parent then add the node between the children of its parent if it has a parent. Otherwise add among its own children.
+
+New Implementation 2:
+---
+1. For each city we store id of neighbours in the path.
+2. For each city we store the matrix coordinates of the square in its current layer.
+3. For each city we store the matrix coordinates of the square in the next layer.
+4. For addition of each city in a layer:
+    a. If there is a next layer:
+        i. Then take cities, from the next layer, in the surrounding squares including the one that it's on.
+        ii. if there are less than 2 nodes in the surrounding squares, then use +- 1 to curent range of finding surrounding squares to search
+5. When a node is checked for removal:
+    a. If the node has parent then add the node between the children of its parent if it has a parent. Otherwise add among its own children.
+
+New Implementation 3:
+---
+1. For each city we store id of neighbours in the path.
+2. For each city we store the matrix coordinates of the square in the final layer.
+3. We complete the net for the final layer N.
+4. For addition of each city to the path:
+    a. Find the neighbours in the path:
+        i. Take cities in the surrounding squares including the one that it's on if there are other cities there.
+        ii. if there are less than 2 nodes in the surrounding squares, then use +- 1 to curent range of finding surrounding squares to search
+    b. Check for best insertion cost in the selected neighbours in the path
+    c. After insertion check whether there is any nodes inside the triangle formed by the added node and its neigbours by checking for nodes inside the rectangle formed by (min_coord, min_coord) and (max_coord, max_coord) of the three triangle nodes
+5. When a node is checked for removal:
+    a. Find neighbours using the same process as mentioned in step 4.a
+    b. Check whether the it's cost is still a minimum.
