@@ -673,6 +673,14 @@ public:
         Value_t min_cost{ insertionCost(
             new_city, m_cities[m_path[num_nodes - 1]], m_cities[m_path[0]]) };
         int best_index{ 0 };
+        // if (utils::isEqual(min_cost, VALUE_ZERO) and (not isBetween(new_city, m_cities[m_path[num_nodes - 1]], m_cities[m_path[0]]))) {
+        //     utils::printInfoFmt("Cost %f is %f but cities not between %i", "findBestInsertion", min_cost, VALUE_ZERO, isBetween(new_city, m_cities[m_path[num_nodes - 1]], m_cities[m_path[0]]));
+        //     new_city.print();
+        //     m_cities[m_path[num_nodes - 1]].print();
+        //     m_cities[m_path[0]].print();
+        //     min_cost = std::numeric_limits<Value_t>::max();
+        //     best_index = -1;
+        // }
         if (position == m_path[num_nodes - 1]) {
             utils::printErr("trying to add city that already exists in path",
                             "findBestInsertion");
@@ -704,6 +712,13 @@ public:
             }
             const Value_t cost =
                 insertionCost(new_city, m_cities[pos], m_cities[pos_next]);
+            // if (utils::isEqual(cost, VALUE_ZERO) and (not isBetween(new_city, m_cities[pos], m_cities[pos_next]))) {
+            //     utils::printInfoFmt("Cost %f is %f but cities not between %i", "findBestInsertion", cost, VALUE_ZERO, isBetween(new_city, m_cities[pos], m_cities[pos_next]));
+            //     new_city.print();
+            //     m_cities[pos].print();
+            //     m_cities[pos_next].print();
+            //     continue;
+            // }
             if (cost < min_cost) {
                 min_cost = cost;
                 best_index = idx + 1;
@@ -1166,6 +1181,7 @@ public:
         int loop_count{ 0 };
         int loop_check = 1e4;
         float loop_time{ 10.0 };
+        std::chrono::seconds sleep_time{ 5 };
 #endif
         typedef std::uniform_int_distribution<int> distrib_t;
         [[maybe_unused]] const Index_t num_cities = m_cities.size();
@@ -1219,7 +1235,7 @@ public:
                     std::cout.flush();
                     std::cerr.flush();
                     std::this_thread::sleep_for(sleep_time);
-                    drawPath(m_path, m_cities, true, m_name, loop_time,
+                    drawPath(m_path, m_cities, false, m_name, loop_time,
                              m_path[idx_added]);
                 }
             }
@@ -1320,21 +1336,21 @@ public:
 #endif
 
 #if TSP_DEBUG_PRINT > 0
-            if (print_pos and erased1.has_value()) {
+            if (print_pos and erased.has_value()) {
                 if (loop_count > loop_check) {
                     global_print = true;
                     utils::printInfo(
                         "After adding node for city " + std::to_string(pos) +
                         " at " + std::to_string(idx_added) +
                         " and removing intersection city " +
-                        std::to_string(erased1.value()) + " path size " +
+                        std::to_string(erased.value()) + " path size " +
                         std::to_string(m_path.size()));
-                    m_cities[erased1.value()].print();
+                    m_cities[erased.value()].print();
                     std::cout.flush();
                     std::cerr.flush();
                     std::this_thread::sleep_for(sleep_time);
-                    drawPath(m_path, m_cities, true, m_name, loop_time,
-                             erased1.value());
+                    drawPath(m_path, m_cities, false, m_name, loop_time,
+                             erased.value());
                 } else {
                     ++loop_count;
                 }
@@ -1365,10 +1381,6 @@ public:
                                      std::to_string(m_path.size()) + "/" +
                                      std::to_string(num_cities),
                                  "run");
-                // utils::printInfo("New starting point " +
-                //                      std::to_string(idx_rand) + " with city " +
-                //                      std::to_string(pos),
-                //                  "run");
                 utils::printInfoFmt("New starting point %i with city %u",
                                  "run", idx_rand, pos);
 #endif
