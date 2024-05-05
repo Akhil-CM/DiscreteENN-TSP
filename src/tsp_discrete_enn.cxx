@@ -69,10 +69,12 @@ void parseCities(Cities_t& cities, const std::string& filename)
     }
 }
 
-auto makeStackLayers(const Cities_t& cities, CityLayers_t& city_layers,
+auto makeStackLayers(DiscreteENN_TSP& enn_tsp, const Cities_t& quadrant,
                       const MinMaxCoords& minmax_coords, int depth)
 {
-    if (cities.empty()) {
+    Cities_t& cities{ enn_tsp.cities() };
+    CityLayers_t& stack{ enn_tsp.stack() };
+    if (quadrant.empty()) {
         return std::make_pair(0, -1);
     }
     const auto [min_x, max_x, min_y, max_y] = minmax_coords.value();
@@ -81,7 +83,7 @@ auto makeStackLayers(const Cities_t& cities, CityLayers_t& city_layers,
 
     constexpr int parts{ 4 };
     Cities_t quadrants[parts];
-    for (const City& coord : cities) {
+    for (const City& coord : quadrant) {
         if (coord.x <= mid_x && coord.y <= mid_y)
             quadrants[0].push_back(coord);
         else if (coord.x > mid_x && coord.y <= mid_y)
@@ -100,44 +102,46 @@ auto makeStackLayers(const Cities_t& cities, CityLayers_t& city_layers,
         }
         City city = cities_quadrant.back();
         cities_quadrant.pop_back();
-        city_layers[depth].push_back(city.id);
+        stack[depth].push_back(city.id);
+        cities[city.id].layer = depth;
         ++added;
     }
     const int depth_next = depth + 1;
     int depth_max{depth};
     {
-        auto [tmp_add, tmp_depth] = makeStackLayers(
-            quadrants[0], city_layers, { min_x, mid_x, min_y, mid_y }, depth_next);
+        auto [tmp_add, tmp_depth] = makeStackLayers(enn_tsp,
+            quadrants[0], { min_x, mid_x, min_y, mid_y }, depth_next);
         added += tmp_add;
         depth_max = std::max(tmp_depth, depth_max);
     }
     {
-        auto [tmp_add, tmp_depth] = makeStackLayers(
-            quadrants[1], city_layers, { mid_x, max_x, min_y, mid_y }, depth_next);
+        auto [tmp_add, tmp_depth] = makeStackLayers(enn_tsp,
+            quadrants[1], { mid_x, max_x, min_y, mid_y }, depth_next);
         added += tmp_add;
         depth_max = std::max(tmp_depth, depth_max);
     }
     {
-        auto [tmp_add, tmp_depth] = makeStackLayers(
-            quadrants[2], city_layers, { min_x, mid_x, mid_y, max_y }, depth_next);
+        auto [tmp_add, tmp_depth] = makeStackLayers(enn_tsp,
+            quadrants[2], { min_x, mid_x, mid_y, max_y }, depth_next);
         added += tmp_add;
         depth_max = std::max(tmp_depth, depth_max);
     }
     {
-        auto [tmp_add, tmp_depth] = makeStackLayers(
-            quadrants[3], city_layers, { mid_x, max_x, mid_y, max_y }, depth_next);
+        auto [tmp_add, tmp_depth] = makeStackLayers(enn_tsp,
+            quadrants[3], { mid_x, max_x, mid_y, max_y }, depth_next);
         added += tmp_add;
         depth_max = std::max(tmp_depth, depth_max);
     }
     return std::make_pair(added, depth_max);
 }
 
-int createStack(Stack_t& stack, const Cities_t& cities, const MinMaxCoords& minmax_coords)
+int createStack(DiscreteENN_TSP& enn_tsp, const MinMaxCoords& minmax_coords)
 {
-    stack.clear();
-    const std::size_t num_cities = cities.size();
+    enn_tsp.stack().clear();
+    Cities_t cities_copy = enn_tsp.cities();
+    const std::size_t num_cities = cities_copy.size();
     const auto& [cities_added, depth] =
-        makeStackLayers(cities, stack, minmax_coords, 1);
+        makeStackLayers(enn_tsp, cities_copy, minmax_coords, 1);
     if (static_cast<std::size_t>(cities_added) != num_cities) {
         const std::string& error_msg{ "number of cities in city_layers (" +
                                       std::to_string(cities_added) +
@@ -150,18 +154,25 @@ int createStack(Stack_t& stack, const Cities_t& cities, const MinMaxCoords& minm
     return depth;
 }
 
-void makeGridInfo(Cities_t& cities, int depth, const MinMaxCoords& minmax_coords)
+void makeGridInfo(DiscreteENN_TSP& enn_tsp, int depth, const MinMaxCoords& minmax_coords)
 {
+    Grid_t& grid{ enn_tsp.grid() };
     const auto [min_x, max_x, min_y, max_y] = minmax_coords.value();
-    const int num_cells_side = 0x01 << depth;
-    const int num_cells_total = num_cells_side * num_cells_side;
-    const Value_t step_sizeX{ (max_x - min_x)/num_cells_side };
-    const Value_t step_sizeY{ (max_y - min_y)/num_cells_side };
+    int& grid_size{ enn_tsp.gridSize() };
+    grid_size = 0x01 << depth;
+    [[maybe_unused]] const int num_cells = grid_size * grid_size;
+    grid.clear();
+    grid = Grid_t(grid_size, std::vector<Indices_t>(grid_size, Indices_t{}));
+    const Value_t step_sizeX{ std::abs(max_x - min_x)/grid_size };
+    const Value_t step_sizeY{ std::abs(max_y - min_y)/grid_size };
+    Cities_t& cities{ enn_tsp.cities() };
     for (City& city: cities) {
-        const int x_cell = (city.x - min_x)/step_sizeX;
-        const int y_cell = (city.y - min_y)/step_sizeY;
-        city.x_cell = x_cell == num_cells_side ? num_cells_side - 1 : x_cell;
-        city.y_cell = y_cell == num_cells_side ? num_cells_side - 1 : y_cell;
+        const int x_cell = std::abs(city.x - min_x)/step_sizeX;
+        const int y_cell = std::abs(city.y - min_y)/step_sizeY;
+        city.x_cell = x_cell == grid_size ? grid_size - 1 : x_cell;
+        city.y_cell = y_cell == grid_size ? grid_size - 1 : y_cell;
+        grid[city.x_cell][city.y_cell].push_back(city.id);
+        city.on_stack = true;
     }
 }
 

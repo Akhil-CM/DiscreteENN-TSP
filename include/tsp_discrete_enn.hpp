@@ -4,7 +4,7 @@
 
 #define TSP_DRAW
 
-#define TSP_DEBUG_PRINT 0
+#define TSP_DEBUG_PRINT 1
 #define TSP_DRAW_DISPLAY 0
 #define TSP_DRAW_SAVE 0
 #define TSP_ERROR 0
@@ -16,7 +16,7 @@
 #include <cstdlib>
 #include <set>
 #include <random>
-#include <map>
+#include <unordered_map>
 #include <string>
 #include <unordered_set>
 #include <cmath>
@@ -74,6 +74,7 @@ template <typename T> using IndexExp_t = utils::Expected<Index_t, T>;
 // typedef Indices_t Stack_t;
 // typedef std::set<Index_t> Stack_t;
 // typedef std::set<Index_t, std::greater<Index_t>> Stack_t;
+typedef std::vector<std::vector<Indices_t>> Grid_t;
 
 struct City
 {
@@ -109,7 +110,7 @@ struct City
 typedef std::vector<City> Cities_t;
 typedef Cities_t::iterator Node_t;
 typedef std::vector<Node_t> Path_t;
-typedef std::map<int, Indices_t> CityLayers_t;
+typedef std::unordered_map<int, Indices_t> CityLayers_t;
 typedef CityLayers_t Stack_t;
 
 template <> inline bool utils::MatchItem<City>::operator()(const City& city)
@@ -281,6 +282,10 @@ public:
     {
         return m_path;
     }
+    Grid_t& grid()
+    {
+        return m_grid;
+    }
     std::string& name()
     {
         return m_name;
@@ -292,6 +297,10 @@ public:
     int& layers()
     {
         return m_layers;
+    }
+    int& gridSize()
+    {
+        return m_gridSize;
     }
     bool& rmIntersectRecurse()
     {
@@ -333,8 +342,8 @@ public:
 
     Index_t stackPopBack()
     {
-        const Index_t result{ m_stack.back() };
-        m_stack.pop_back();
+        const Index_t result{ m_stack[m_layer].back() };
+        m_stack[m_layer].pop_back();
         // const Stack_t::const_iterator back{ --(m_stack.end()) };
         // const Index_t result{ *back };
         // m_stack.erase(back);
@@ -344,9 +353,10 @@ public:
 
     Index_t stackPopAt(Index_t index)
     {
-        const Stack_t::const_iterator it{ m_stack.begin() + index };
+        Indices_t& stack_slice{ m_stack[m_layer] };
+        const Indices_t::const_iterator it{ stack_slice.begin() + index };
         const Index_t result{ *it };
-        m_stack.erase(it);
+        stack_slice.erase(it);
         // const Stack_t::const_iterator it{ std::next(m_stack.begin(), index) };
         // const Index_t result{ *it };
         // m_stack.erase(it);
@@ -366,9 +376,15 @@ public:
         const Indices_t::iterator node_iter{ m_path.begin() + index };
         m_path.erase(node_iter);
         m_cities[pos].on_stack = true;
-        m_stack.push_back(pos);
+        // m_stack.push_back(pos);
         // m_stack.insert(m_stack.begin(), pos);
         // m_stack.insert(pos);
+        m_stack[m_cities[pos].layer].push_back(pos);
+
+        const Index_t pos_next = m_path[properIndex(index)];
+        const Index_t pos_prev = m_path[properIndex(int(index) - 1)];
+        m_cities[pos_next].id_prev = pos_prev;
+        m_cities[pos_prev].id_next = pos_next;
     }
 
     void addNode(Index_t index, Index_t pos)
@@ -382,6 +398,13 @@ public:
         m_pattern.insert(idx_insert, node_idx_added_str);
 
         m_path.insert(m_path.begin() + index, pos);
+
+        const Index_t pos_next = m_path[index + 1];
+        const Index_t pos_prev = m_path[properIndex(int(index) - 1)];
+        m_cities[pos].id_next = pos_next;
+        m_cities[pos].id_prev = pos_prev;
+        m_cities[pos_next].id_prev = pos;
+        m_cities[pos_prev].id_next = pos;
     }
 
     std::pair<bool, bool> validateNode(Index_t index) const
@@ -667,9 +690,8 @@ public:
 
     int findBestInsertion(Index_t position) const
     {
-        const Index_t num_nodes = m_path.size();
 #if TSP_ERROR > 0
-        if (num_nodes < 2) {
+        if (m_path.size() < 2) {
             utils::printErr("given path size less than 2", "findBestInsertion");
 #if TSP_ERROR > 1
             throw std::runtime_error{ "Invalid path size" };
@@ -678,48 +700,94 @@ public:
         }
 #endif
         const City& new_city{ m_cities[position] };
+        const int gridX = new_city.x_cell;
+        const int gridY = new_city.y_cell;
 
-        Value_t min_cost{ insertionCost(
-            new_city, m_cities[m_path[num_nodes - 1]], m_cities[m_path[0]]) };
-        int best_index{ 0 };
-        if (position == m_path[num_nodes - 1]) {
-            utils::printErr("trying to add city that already exists in path",
-                            "findBestInsertion");
-            utils::printErr("City (" + std::to_string(position) +
-                                ") already exists at index " +
-                                std::to_string(num_nodes - 1) + " with pos " +
-                                std::to_string(m_path[num_nodes - 1]),
-                            "findBestInsertion");
-            utils::printErr("Invalid city info:", "findBestInsertion");
-            new_city.print();
-            return -1;
-        }
-
-        for (Index_t idx{ 0 }; idx != (num_nodes - 1); ++idx) {
-            const Index_t pos{ m_path[idx] };
-            const Index_t pos_next{ m_path[idx + 1] };
-            if (position == pos) {
-                utils::printErr(
-                    "trying to add city that already exists in path",
-                    "findBestInsertion");
-                utils::printErr("City (" + std::to_string(position) +
-                                    ") already exists at index " +
-                                    std::to_string(idx) + " with pos " +
-                                    std::to_string(m_path[idx]),
-                                "findBestInsertion");
-                utils::printErr("Invalid city info:", "findBestInsertion");
-                new_city.print();
-                return -1;
+        int search_len{0}, best_position{-1};
+        Index_t num_nodes{0};
+        Value_t min_cost{ std::numeric_limits<Value_t>::max() };
+        const Indices_t& cell_positions = m_grid[gridX][gridY];
+        utils::printInfoFmt("cell size %u, current position %i, (gridX, gridY) (%i, %i), best_position %i, num_nodes %u, grids %i", "findBestInsertion", cell_positions.size(), position, gridX, gridY, best_position, num_nodes, m_gridSize);
+        for (const Index_t& cell_position : cell_positions) {
+            // utils::printInfoFmt("cell position %u, current position %i, (gridX, gridY) (%i, %i), best_position %i, num_nodes %u", "findBestInsertion", cell_position, position, gridX, gridY, best_position, num_nodes);
+            if (cell_position == position) {
+                continue;
             }
-            const Value_t cost =
-                insertionCost(new_city, m_cities[pos], m_cities[pos_next]);
+            const City& city{ m_cities[cell_position] };
+            if (city.on_stack) {
+                continue;
+            }
+            const Index_t pos_prev = city.id_prev;
+            const Index_t pos_next = city.id_next;
+            // utils::printInfoFmt("cell position %u, (pos_prev, pos_next) (%i, %i)", "findBestInsertion", cell_position, pos_prev, pos_next);
+            Value_t cost{ insertionCost(new_city, city, m_cities[pos_next]) };
             if (cost < min_cost) {
                 min_cost = cost;
-                best_index = idx + 1;
+                best_position = pos_next;
+            }
+            // utils::printInfoFmt("cell position %u, current position %i, (gridX, gridY) (%i, %i), best_position %i, num_nodes %u, cost %f", "findBestInsertion", cell_position, position, gridX, gridY, best_position, num_nodes, cost);
+            cost = insertionCost(new_city, m_cities[pos_prev], city);
+            if (cost < min_cost) {
+                min_cost = cost;
+                best_position = cell_position;
+            }
+            ++num_nodes;
+            // utils::printInfoFmt("cell position %u, current position %i, (gridX, gridY) (%i, %i), best_position %i, num_nodes %u, cost %f", "findBestInsertion", cell_position, position, gridX, gridY, best_position, num_nodes, cost);
+        }
+        while (num_nodes == 0) {
+            ++search_len;
+            for (int x_offset{-search_len}; x_offset != (search_len + 1); ++x_offset) {
+                for (int y_offset{-search_len}; y_offset != (search_len + 1); ++y_offset) {
+                    if ( std::abs(x_offset) != search_len and std::abs(y_offset) != search_len) {
+                        continue;
+                    }
+                    const int x_cell = gridX + x_offset;
+                    const int y_cell = gridY + y_offset;
+                    if ((x_cell < 0) or (x_cell >= m_gridSize)) {
+                        continue;
+                    }
+                    if ((y_cell < 0) or (y_cell >= m_gridSize)) {
+                        continue;
+                    }
+                    const Indices_t& cell_positions = m_grid[x_cell][y_cell];
+                    // utils::printInfoFmt("cell size %u, current position %i, (x_cell, y_cell) (%i, %i), best_position %i, num_nodes %u", "findBestInsertion", cell_positions.size(), position, x_cell, y_cell, best_position, num_nodes);
+                    for (const Index_t& cell_position : cell_positions) {
+                        // utils::printInfoFmt("cell position %u, current position %i, (x_cell, y_cell) (%i, %i), best_position %i, num_nodes %u", "findBestInsertion", cell_position, position, x_cell, y_cell, best_position, num_nodes);
+                        if (cell_position == position) {
+                            continue;
+                        }
+                        const City& city{ m_cities[cell_position] };
+                        if (city.on_stack) {
+                            continue;
+                        }
+                        const int pos_prev = city.id_prev;
+                        const int pos_next = city.id_next;
+                        // utils::printInfoFmt("cell position %u, (pos_prev, pos_next) (%i, %i)", "findBestInsertion", cell_position, pos_prev, pos_next);
+                        Value_t cost{ insertionCost(new_city, city, m_cities[pos_next]) };
+                        if (cost < min_cost) {
+                            min_cost = cost;
+                            best_position = pos_next;
+                        }
+                        // utils::printInfoFmt("cell position %u, current position %i, (x_cell, y_cell) (%i, %i), best_position %i, num_nodes %u, cost %f", "findBestInsertion", cell_position, position, x_cell, y_cell, best_position, num_nodes, cost);
+                        cost = insertionCost(new_city, m_cities[pos_prev], city);
+                        if (cost < min_cost) {
+                            min_cost = cost;
+                            best_position = cell_position;
+                        }
+                        ++num_nodes;
+                        // utils::printInfoFmt("cell position %u, current position %i, (x_cell, y_cell) (%i, %i), best_position %i, num_nodes %u, cost %f", "findBestInsertion", cell_position, position, x_cell, y_cell, best_position, num_nodes, cost);
+                    }
+                }
             }
         }
 
-        return best_index;
+        for (Index_t idx{0}; idx != m_path.size(); ++idx) {
+            if (static_cast<int>(m_path[idx]) == best_position) {
+                return idx;
+            }
+        }
+
+        return -1;
     }
 
     auto findEdge(Index_t pos_start, Index_t pos_end)
@@ -1130,15 +1198,9 @@ public:
             }
             return;
         }
-        m_stack.reserve(num_cities);
-        [[maybe_unused]] const Index_t end{ num_cities - 1 };
-        for (Index_t idx{ 0 }; idx != num_cities; ++idx) {
-            m_stack.push_back(end - idx);
-            // m_stack.push_back(idx);
-            // m_stack.insert(idx);
-        }
         m_path.clear();
         m_path.reserve(num_cities);
+        m_pattern = "";
     }
 
     void constructInitialPath()
@@ -1146,13 +1208,24 @@ public:
         if (m_initialSize < 1) {
             m_initialSize = Num_Nodes_Initial;
         }
-        const Index_t pos{ stackPopBack() };
-        m_path.push_back(pos);
-        m_pattern = pos_sep + std::to_string(pos) + pos_sep;
-        for (int idx{ 1 }; idx != m_initialSize; ++idx) {
+        for (m_layer = m_layers; m_layer != -1; --m_layer) {
+            if (m_stack.count(m_layer) == 0 or m_stack[m_layer].size() == 0) {
+                continue;
+            }
+            m_stackSlice = &(m_stack[m_layer]);
             const Index_t pos{ stackPopBack() };
             m_path.push_back(pos);
             m_pattern += pos_sep + std::to_string(pos) + pos_sep;
+            if (static_cast<int>(m_path.size()) == m_initialSize) {
+                break;
+            }
+        }
+        for (Index_t idx{0}; idx != m_path.size(); ++idx) {
+            City& city{ m_cities[m_path[idx]] };
+            const Index_t pos_prev = m_path[properIndex(int(idx) - 1)];
+            const Index_t pos_next = m_path[properIndex(int(idx) + 1)];
+            city.id_prev = pos_prev;
+            city.id_next = pos_next;
         }
         if (m_path.size() == 2) {
             m_fromScratch = true;
@@ -1175,14 +1248,22 @@ public:
         int loop_count{ 0 };
         int loop_check = 1e4;
         float loop_time{ 10.0 };
+        std::chrono::seconds sleep_time{ 5 };
 #endif
         typedef std::uniform_int_distribution<int> distrib_t;
         [[maybe_unused]] const Index_t num_cities = m_cities.size();
         distrib_t distrib(0, num_cities - 1);
         std::unordered_set<std::string> pattern_hashes;
-        Index_t pos{ stackPopBack() };
         int idx_added{ -1 };
+        m_layer = m_layers;
         while (true) {
+            for (; m_layer != -1; --m_layer) {
+                if (m_stack.count(m_layer) != 0 and m_stack[m_layer].size() != 0) {
+                    m_stackSlice = &(m_stack[m_layer]);
+                    break;
+                }
+            }
+            Index_t pos{ stackPopBack() };
             if (m_fromScratch) {
                 idx_added = 0;
                 m_fromScratch = false;
@@ -1228,7 +1309,7 @@ public:
                     std::cout.flush();
                     std::cerr.flush();
                     std::this_thread::sleep_for(sleep_time);
-                    drawPath(m_path, m_cities, true, m_name, loop_time,
+                    drawPath(m_path, m_cities, false, m_name, loop_time,
                              m_path[idx_added]);
                 }
             }
@@ -1329,21 +1410,21 @@ public:
 #endif
 
 #if TSP_DEBUG_PRINT > 0
-            if (print_pos and erased1.has_value()) {
+            if (print_pos and erased.has_value()) {
                 if (loop_count > loop_check) {
                     global_print = true;
                     utils::printInfo(
                         "After adding node for city " + std::to_string(pos) +
                         " at " + std::to_string(idx_added) +
                         " and removing intersection city " +
-                        std::to_string(erased1.value()) + " path size " +
+                        std::to_string(erased.value()) + " path size " +
                         std::to_string(m_path.size()));
-                    m_cities[erased1.value()].print();
+                    m_cities[erased.value()].print();
                     std::cout.flush();
                     std::cerr.flush();
                     std::this_thread::sleep_for(sleep_time);
-                    drawPath(m_path, m_cities, true, m_name, loop_time,
-                             erased1.value());
+                    drawPath(m_path, m_cities, false, m_name, loop_time,
+                             erased.value());
                 } else {
                     ++loop_count;
                 }
@@ -1355,36 +1436,30 @@ public:
                 break;
             }
             if (not pattern_hashes.insert(m_pattern).second) {
-                distrib.param(distrib_t::param_type(0, stack_size - 1));
-                const int idx_rand{ distrib(gen) };
-                // const int idx_rand = num_cities%stack_size;
-                // const int idx_rand = 0;
-                pos = stackPopAt(idx_rand);
-                utils::printInfo(
-                    "Found repeating pattern. Randomize input node", "run");
-                utils::printInfoFmt("Path progress %u/%u", "run", m_path.size(), num_cities);
-                utils::printInfoFmt("New starting point %i with city %u",
-                                 "run", idx_rand, pos);
+                // distrib.param(distrib_t::param_type(0, stack_size - 1));
+                // const int idx_rand{ distrib(gen) };
+                // // const int idx_rand = num_cities%stack_size;
+                // // const int idx_rand = 0;
+                // pos = stackPopAt(idx_rand);
+
+                distrib.param(distrib_t::param_type(1, m_layers));
+                m_layer = distrib(gen);
+                while (m_stack.count(m_layer) == 0 or m_stack[m_layer].size() == 0) {
+                    m_layer = distrib(gen);
+                }
+                m_stackSlice = &(m_stack[m_layer]);
 
 #if TSP_DEBUG_PRINT > 0
                 print_pos = true;
                 utils::printInfo(
                     "Found repeating pattern. Randomize input node", "run");
-                utils::printInfo("Path progress " +
-                                     std::to_string(m_path.size()) + "/" +
-                                     std::to_string(num_cities),
-                                 "run");
-                // utils::printInfo("New starting point " +
-                //                      std::to_string(idx_rand) + " with city " +
-                //                      std::to_string(pos),
-                //                  "run");
-                utils::printInfoFmt("New starting point %i with city %u",
-                                 "run", idx_rand, pos);
+                utils::printInfoFmt("Path progress %u/%u", "run", m_path.size(), num_cities);
+                utils::printInfoFmt("New starting layer %i",
+                                 "run", m_layer);
 #endif
                 continue;
             }
-
-            pos = stackPopBack();
+            m_layer = m_layers;
         }
 
         for (std::size_t idx{ 0 }; idx != num_cities; ++idx) {
@@ -1421,19 +1496,23 @@ private:
     bool m_drawFailed{ false };
     bool m_drawCoords{ false };
     int m_initialSize{ Num_Nodes_Initial };
+    int m_layer{ -1 };
     int m_layers{ -1 };
+    int m_gridSize{ -1 };
+    Indices_t* m_stackSlice;
     std::string m_name;
     std::string m_pattern;
     Cities_t m_cities;
     Stack_t m_stack;
     Indices_t m_path;
+    Grid_t m_grid;
 };
 
 void parseCities(Cities_t& cities, const std::string& filename);
 
-int createStack(Stack_t& stack, const Cities_t& cities, const MinMaxCoords& minmax_coords);
+int createStack(DiscreteENN_TSP& enn_tsp, const MinMaxCoords& minmax_coords);
 
-void makeGridInfo(Cities_t& cities, int depth, const MinMaxCoords& minmax_coords);
+void makeGridInfo(DiscreteENN_TSP& enn_tsp, int depth, const MinMaxCoords& minmax_coords);
 
 struct TSPInfo
 {

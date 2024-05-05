@@ -296,7 +296,7 @@ int runPipelineSingle(TSPInfo& info, const stdfs::path& data_path,
     // min_x = min_y = static_cast<Value_t>(0);
     // min_x = min_y = min_coord;
     // max_x = max_y = max_coord;
-    const int depth = createStack(stack, cities, minmax_coords);
+    const int depth = createStack(enn_tsp, minmax_coords);
     if (depth == -1) {
         utils::printErrFmt("createStack function failed.\nNumber of cities : %d", "runPipelineSingle", num_cities);
         return 1;
@@ -308,7 +308,7 @@ int runPipelineSingle(TSPInfo& info, const stdfs::path& data_path,
     // -------------------------------------------
     // Update grid info from final layer for cities
     // -------------------------------------------
-    makeGridInfo(cities, depth, minmax_coords);
+    makeGridInfo(enn_tsp, depth, minmax_coords);
 
     // -------------------------------------------
     // Initialize
