@@ -303,7 +303,7 @@ int runPipelineSingle(TSPInfo& info, const stdfs::path& data_path,
     }
     enn_tsp.layers() = depth;
     // createStack(cities_tmp, cities);
-    utils::printInfoFmt("Total number of layers created %d.", "runPipelineSingle", depth);
+    utils::printInfoFmt("Total number of layers created %i.", "runPipelineSingle", depth);
 
     // -------------------------------------------
     // Update grid info from final layer for cities

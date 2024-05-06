@@ -157,14 +157,19 @@ int createStack(DiscreteENN_TSP& enn_tsp, const MinMaxCoords& minmax_coords)
 void makeGridInfo(DiscreteENN_TSP& enn_tsp, int depth, const MinMaxCoords& minmax_coords)
 {
     Grid_t& grid{ enn_tsp.grid() };
+    GridEdge_t& grid_edges{ enn_tsp.gridEdges() };
     const auto [min_x, max_x, min_y, max_y] = minmax_coords.value();
     int& grid_size{ enn_tsp.gridSize() };
     grid_size = 0x01 << depth;
     [[maybe_unused]] const int num_cells = grid_size * grid_size;
     grid.clear();
     grid = Grid_t(grid_size, std::vector<Indices_t>(grid_size, Indices_t{}));
+    grid_edges.clear();
+    grid_edges = GridEdge_t(grid_size, std::vector<Edges_t>(grid_size, Edges_t{}));
     const Value_t step_sizeX{ std::abs(max_x - min_x)/grid_size };
     const Value_t step_sizeY{ std::abs(max_y - min_y)/grid_size };
+    enn_tsp.gridStart() = std::make_pair(min_x, min_y);
+    enn_tsp.gridSteps() = std::make_pair(step_sizeX, step_sizeY);
     Cities_t& cities{ enn_tsp.cities() };
     for (City& city: cities) {
         const int x_cell = std::abs(city.x - min_x)/step_sizeX;
@@ -419,6 +424,13 @@ void drawPath(const Indices_t& path, const Cities_t& cities, bool draw_coords,
         {{min_x, mid_y - mid_y/2}, {max_x, mid_y - mid_y/2}},
         {{min_x, mid_y + mid_y/2}, {max_x, mid_y + mid_y/2}},
     };
+    const int layers = std::pow(2, 6);
+    const Value_t step_x = (max_x - min_x)/layers;
+    const Value_t step_y = (max_y - min_y)/layers;
+    for (int idx{0}; idx != layers; ++idx) {
+        line_points.push_back({{min_x + (idx*step_x), min_y}, {min_x + (idx*step_x), max_y}});
+        line_points.push_back({{min_x, min_y + (idx*step_y)}, {max_x, min_y + (idx*step_y)}});
+    }
     fitPointsInWindow(line_points, window.getSize(), minmax_coords, margin_size);
 
     sf::Clock clock;
@@ -567,6 +579,13 @@ void savePath(const Indices_t& path, const Cities_t& cities, bool draw_coords,
         {{min_x, mid_y + mid_y/2}, {max_x, mid_y + mid_y/2}},
     };
     // fitPointsInWindow(line_points, window.getSize(), minmax_coords, margin_size);
+    const int layers = std::pow(2, 6);
+    const Value_t step_x = (max_x - min_x)/layers;
+    const Value_t step_y = (max_y - min_y)/layers;
+    for (int idx{0}; idx != layers; ++idx) {
+        line_points.push_back({{min_x + (idx*step_x), min_y}, {min_x + (idx*step_x), max_y}});
+        line_points.push_back({{min_x, min_y + (idx*step_y)}, {max_x, min_y + (idx*step_y)}});
+    }
 
     sf::Clock clock;
     sf::Font font;

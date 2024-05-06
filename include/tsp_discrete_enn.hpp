@@ -4,7 +4,7 @@
 
 #define TSP_DRAW
 
-#define TSP_DEBUG_PRINT 1
+#define TSP_DEBUG_PRINT 2
 #define TSP_DRAW_DISPLAY 0
 #define TSP_DRAW_SAVE 0
 #define TSP_ERROR 0
@@ -58,6 +58,7 @@ inline const std::string& pos_sep{ "sep" };
 typedef float Value_t;
 typedef std::size_t Index_t;
 constexpr Value_t VALUE_ZERO{ Value_t{ 0 } };
+constexpr Value_t VALUE_ONE{ Value_t{ 1 } };
 constexpr Value_t VALUE_ONE_NEG{ Value_t{ -1 } };
 
 constexpr Index_t Num_Nodes_Initial{ 3 };
@@ -75,6 +76,9 @@ template <typename T> using IndexExp_t = utils::Expected<Index_t, T>;
 // typedef std::set<Index_t> Stack_t;
 // typedef std::set<Index_t, std::greater<Index_t>> Stack_t;
 typedef std::vector<std::vector<Indices_t>> Grid_t;
+typedef std::pair<Index_t, Index_t> Edge_t;
+typedef std::set<Edge_t> Edges_t;
+typedef std::vector<std::vector<Edges_t>> GridEdge_t;
 
 struct City
 {
@@ -286,6 +290,10 @@ public:
     {
         return m_grid;
     }
+    GridEdge_t& gridEdges()
+    {
+        return m_gridEdges;
+    }
     std::string& name()
     {
         return m_name;
@@ -301,6 +309,14 @@ public:
     int& gridSize()
     {
         return m_gridSize;
+    }
+    auto gridSteps()
+    {
+        return std::tie(m_gridStepX, m_gridStepY);
+    }
+    auto gridStart()
+    {
+        return std::tie(m_gridStartX, m_gridStartY);
     }
     bool& rmIntersectRecurse()
     {
@@ -1106,6 +1122,148 @@ public:
         }
         return IndexExp_t<bool>{ pos_erased, false };
     }
+    auto toGridCell(Value_t x, Value_t y)
+    {
+        int x_cell = std::abs(x - m_gridStartX)/m_gridStepX;
+        int y_cell = std::abs(y - m_gridStartY)/m_gridStepY;
+        x_cell = x_cell == m_gridSize ? m_gridSize - 1 : x_cell;
+        y_cell = y_cell == m_gridSize ? m_gridSize - 1 : y_cell;
+        return std::make_pair(x_cell, y_cell);
+    }
+    std::vector<int> validateEdge(Index_t pos_start, Index_t pos_end, const Edges_t& edges)
+    {
+        const City& city_start{ m_cities[pos_start] };
+        const City& city_end{ m_cities[pos_end] };
+        const std::size_t num_edges = edges.size();
+        std::vector<int> result(num_edges, 0);
+        for (int idx{0}; idx < static_cast<int>(num_edges); ++idx) {
+            const auto [pos, pos_next] = *std::next(edges.begin(),idx);
+            if (pos == pos_start or pos == pos_end) {
+                continue;
+            }
+            if (pos_next == pos_start or pos_next == pos_end) {
+                continue;
+            }
+            if (hasIntersection(city_start, city_end, m_cities[pos], m_cities[pos_next])) {
+                result[idx] = 1;
+            }
+        }
+        return result;
+    }
+    IndexExp_t<bool> markEdgeCells(Index_t pos_start, Index_t pos_end)
+    {
+        IndexOpt_t pos_erased{ std::nullopt };
+        if (m_path.size() == 3) {
+            return IndexExp_t<bool>{ pos_erased, false };
+        }
+        const City& city_start{ m_cities[pos_start] };
+        const City& city_end{ m_cities[pos_end] };
+        const Value_t p1_x = city_start.x;
+        const Value_t p1_y = city_start.y;
+        const Value_t p2_x = city_end.x;
+        const Value_t p2_y = city_end.y;
+        const Value_t width_x = p2_x - p1_x;
+        const Value_t width_y = p2_y - p1_y;
+        const Value_t length = std::sqrt(width_x*width_x + width_y*width_y) ;
+        Value_t step_startX = p1_x;
+        Value_t step_startY = p1_y;
+        while ((step_startX < p2_x or utils::isEqual(step_startX, p2_x)) and (step_startY < p2_y or utils::isEqual(step_startY, p2_y))) {
+            if (m_fromScratch) {
+                break;
+            }
+            if (city_start.on_stack or city_end.on_stack) {
+                unmarkEdgeCells(pos_start, pos_end);
+                break;
+            }
+            const auto [x_cell, y_cell] = toGridCell(step_startX, step_startY);
+            Edges_t& edges = m_gridEdges[x_cell][y_cell];
+            auto inserted = edges.insert(std::make_pair(pos_start, pos_end));
+            if (not inserted.second) {
+                step_startX += utils::getRound2((width_x/length)*m_gridStepX/2.);
+                step_startY += utils::getRound2((width_y/length)*m_gridStepY/2.);
+                continue;
+            }
+            for (auto it{ edges.begin() }; it != edges.end();) {
+                const auto [pos, pos_next] = *it;
+                if (pos == pos_start or pos == pos_end) {
+                    ++it;
+                    continue;
+                }
+                if (pos_next == pos_start or pos_next == pos_end) {
+                    ++it;
+                    continue;
+                }
+                if (hasIntersection(city_start, city_end, m_cities[pos], m_cities[pos_next])) {
+                    auto [idx, idx_next] = findEdge(pos, pos_next);
+                    if (idx == -1 or idx_next == -1) {
+                        utils::printInfoFmt("Current cities for path size %u", "markEdgeCells", m_path.size());
+                        for (const City& tmp: m_cities) {
+                            tmp.print();
+                        }
+                        throw std::runtime_error{utils::stringFmt("[Error] (markEdgeCells): invalid removal indices: %i, %i from positions %i and %i", idx, idx_next, pos, pos_next)};
+                    }
+                    removeNode(idx);
+                    removeNode(properIndex(idx));
+                    unmarkEdgeCells(pos, pos_next);
+                    if (pos_erased.has_value()) {
+                        pos_erased =
+                            std::min(*pos_erased, std::min(pos,
+                                                           pos_next));
+                    } else {
+                        pos_erased =
+                            std::min(pos, pos_next);
+                    }
+                    it = edges.erase(it);
+                    if (m_path.size() == 2) {
+                        m_fromScratch = true;
+                        break;
+                    }
+                    idx_next = idx_next == 0 ? 0 : properIndex(idx);
+                    idx = properIndex(int(idx_next) - 1);
+                    updateCost(idx);
+                    updateCost(idx_next);
+                    auto erased = markEdgeCells(m_path[idx], m_path[idx_next]);
+                    if (erased.has_value()) {
+                        pos_erased = pos_erased.has_value() ?
+                                         std::min(*pos_erased, erased.value()) :
+                                         erased.opt();
+                    }
+                    if (city_start.on_stack or city_end.on_stack) {
+                        break;
+                    }
+                } else {
+                    ++it;
+                }
+            }
+            step_startX += utils::getRound2((width_x/length)*m_gridStepX/2.);
+            step_startY += utils::getRound2((width_y/length)*m_gridStepY/2.);
+        }
+
+        return IndexExp_t<bool>{ pos_erased, false };
+    }
+    void unmarkEdgeCells(Index_t pos_start, Index_t pos_end)
+    {
+        const City& city_start{ m_cities[pos_start] };
+        const City& city_end{ m_cities[pos_end] };
+        m_gridEdges[city_start.x_cell][city_start.y_cell].erase(std::make_pair(pos_start, pos_end));
+        m_gridEdges[city_end.x_cell][city_end.y_cell].erase(std::make_pair(pos_start, pos_end));
+        const Value_t p1_x = city_start.x;
+        const Value_t p1_y = city_start.y;
+        const Value_t p2_x = city_end.x;
+        const Value_t p2_y = city_end.y;
+        const Value_t width_x = p2_x - p1_x;
+        const Value_t width_y = p2_y - p1_y;
+        const Value_t length = std::sqrt(width_x*width_x + width_y*width_y) ;
+        Value_t step_startX = p1_x;
+        Value_t step_startY = p1_y;
+        while ((step_startX < p2_x or utils::isEqual(step_startX, p2_x)) and (step_startY < p2_y or utils::isEqual(step_startY, p2_y))) {
+            const auto [x_cell, y_cell] = toGridCell(step_startX, step_startY);
+            m_gridEdges[x_cell][y_cell].erase(std::make_pair(pos_start, pos_end));
+            step_startX += utils::getRound2((width_x/length)*m_gridStepX/2.);
+            step_startY += utils::getRound2((width_y/length)*m_gridStepY/2.);
+        }
+
+    }
 
     int checkIntersectEdge(Index_t start, Index_t end)
     {
@@ -1213,11 +1371,14 @@ public:
                 continue;
             }
             m_stackSlice = &(m_stack[m_layer]);
-            const Index_t pos{ stackPopBack() };
-            m_path.push_back(pos);
-            m_pattern += pos_sep + std::to_string(pos) + pos_sep;
-            if (static_cast<int>(m_path.size()) == m_initialSize) {
-                break;
+            const int stack_size = (*m_stackSlice).size();
+            for (int idx{0}; idx != stack_size; ++idx) {
+                const Index_t pos{ stackPopBack() };
+                m_path.push_back(pos);
+                m_pattern += pos_sep + std::to_string(pos) + pos_sep;
+                if (static_cast<int>(m_path.size()) == m_initialSize) {
+                    break;
+                }
             }
         }
         for (Index_t idx{0}; idx != m_path.size(); ++idx) {
@@ -1226,6 +1387,7 @@ public:
             const Index_t pos_next = m_path[properIndex(int(idx) + 1)];
             city.id_prev = pos_prev;
             city.id_next = pos_next;
+            markEdgeCells(city.id, pos_next);
         }
         if (m_path.size() == 2) {
             m_fromScratch = true;
@@ -1257,12 +1419,6 @@ public:
         int idx_added{ -1 };
         m_layer = m_layers;
         while (true) {
-            for (; m_layer != -1; --m_layer) {
-                if (m_stack.count(m_layer) != 0 and m_stack[m_layer].size() != 0) {
-                    m_stackSlice = &(m_stack[m_layer]);
-                    break;
-                }
-            }
             Index_t pos{ stackPopBack() };
             if (m_fromScratch) {
                 idx_added = 0;
@@ -1331,9 +1487,13 @@ public:
 #endif
 
             const auto [idx_prev, idx_next] = getNeigbhours(idx_added);
-            const Index_t pos_start{ m_path[idx_added] };
-            const Index_t pos_end{ m_path[idx_next] };
-            auto erased = validateEdge(idx_prev, idx_added);
+            const Index_t pos_prev{ m_path[idx_prev] };
+            const Index_t pos_curr{ m_path[idx_added] };
+            const Index_t pos_next{ m_path[idx_next] };
+            utils::printInfoFmt("Updating edge marks 1 for path size : %u", "run", m_path.size());
+            unmarkEdgeCells(pos_prev, pos_next);
+            utils::printInfoFmt("Updating edge marks 2 for path size : %u", "run", m_path.size());
+            auto erased = markEdgeCells(pos_prev, pos_curr);
             if (erased.err()) {
                 utils::printErr(
                     "validateEdge failed with (" + std::to_string(idx_prev) +
@@ -1343,10 +1503,10 @@ public:
                 return false;
             }
 
-            if (not m_fromScratch and (not m_cities[pos_start].on_stack) and
-                (not m_cities[pos_end].on_stack)) {
-                const auto [start, end] = findEdge(pos_start, pos_end);
-                const auto erased_tmp = validateEdge(start, end);
+            if (not m_fromScratch and (not m_cities[pos_curr].on_stack) and
+                (not m_cities[pos_next].on_stack)) {
+                const auto [start, end] = findEdge(pos_curr, pos_next);
+                const auto erased_tmp = markEdgeCells(pos_curr, pos_next);
                 if (erased_tmp.err()) {
                     utils::printErr("validateEdge failed with (" +
                                         std::to_string(start) + ", " +
@@ -1380,34 +1540,38 @@ public:
 
 #if TSP_DEBUG_PRINT > 1
             if (checkIntersectPath()) {
-                utils::printErr(
-                    "intersection after removeIntersection from adding node at " +
-                        std::to_string(idx_added) + " current path size " +
-                        std::to_string(m_path.size()),
-                    "run");
-                drawPath(m_path, m_cities, false, m_name);
+                utils::printErrFmt(
+                    "intersection from adding node at %i for city %i. Current path size %u", "run", idx_added, pos, m_path.size());
+                drawPath(m_path, m_cities, false, m_name, 5, pos);
+                if (erased.has_value()) {
+                    utils::printErrFmt(
+                        "intersection from adding node at %i for city %i and removing city %i. Current path size %u", "run", idx_added, pos, erased.value(), m_path.size());
+                    drawPath(m_path, m_cities, false, m_name, 5, erased.value());
+                }
+                std::chrono::seconds sleep_time{ 5 };
+                std::this_thread::sleep_for(sleep_time);
             }
 #endif
 
-#if TSP_DEBUG_PRINT > 1
-            const auto it_erased = validatePath();
-            if (it_erased.err()) {
-                utils::printErr("validatePath failed", "run");
-                return false;
-            }
-            if (it_erased.has_value()) {
-                utils::printErr(
-                    "validatePath removed nodes after validateEdge",
-                    "run");
-                utils::printErr("After adding node for pos " +
-                                 std::to_string(pos) + " at " +
-                                 std::to_string(idx_added) +
-                                 " and removing validation city " +
-                                 std::to_string(it_erased.value()) +
-                                 " path size " + std::to_string(m_path.size()));
-                m_cities[it_erased.value()].print();
-            }
-#endif
+// #if TSP_DEBUG_PRINT > 1
+//             const auto it_erased = validatePath();
+//             if (it_erased.err()) {
+//                 utils::printErr("validatePath failed", "run");
+//                 return false;
+//             }
+//             if (it_erased.has_value()) {
+//                 utils::printErr(
+//                     "validatePath removed nodes after validateEdge",
+//                     "run");
+//                 utils::printErr("After adding node for pos " +
+//                                  std::to_string(pos) + " at " +
+//                                  std::to_string(idx_added) +
+//                                  " and removing validation city " +
+//                                  std::to_string(it_erased.value()) +
+//                                  " path size " + std::to_string(m_path.size()));
+//                 m_cities[it_erased.value()].print();
+//             }
+// #endif
 
 #if TSP_DEBUG_PRINT > 0
             if (print_pos and erased.has_value()) {
@@ -1431,8 +1595,8 @@ public:
             }
 #endif
 
-            const Index_t stack_size = m_stack.size();
-            if (stack_size == 0) {
+            const Index_t num_nodes = m_path.size();
+            if (num_nodes == num_cities) {
                 break;
             }
             if (not pattern_hashes.insert(m_pattern).second) {
@@ -1459,26 +1623,31 @@ public:
 #endif
                 continue;
             }
-            m_layer = m_layers;
-        }
-
-        for (std::size_t idx{ 0 }; idx != num_cities; ++idx) {
-            const auto [valid, err] = validateNode(idx);
-            if (err) {
-                std::cerr
-                    << "[Error] (run): Algoirthm has not found the optimal path\n";
-                return false;
+            for (m_layer = m_layers; m_layer != -1; --m_layer) {
+                if (m_stack.count(m_layer) != 0 and m_stack[m_layer].size() != 0) {
+                    m_stackSlice = &(m_stack[m_layer]);
+                    break;
+                }
             }
         }
-        IndexExp_t<bool> erased = validatePath();
-        if (erased.err()) {
-            std::cerr << "[Error] (run): final validatePath failed\n";
-            return false;
-        }
-        if (erased.has_value()) {
-            std::cerr << "[Error] (run): final validatePath removed node(s)\n";
-            return false;
-        }
+
+        // for (std::size_t idx{ 0 }; idx != num_cities; ++idx) {
+        //     const auto [valid, err] = validateNode(idx);
+        //     if (err) {
+        //         std::cerr
+        //             << "[Error] (run): Algoirthm has not found the optimal path\n";
+        //         return false;
+        //     }
+        // }
+        // IndexExp_t<bool> erased = validatePath();
+        // if (erased.err()) {
+        //     std::cerr << "[Error] (run): final validatePath failed\n";
+        //     return false;
+        // }
+        // if (erased.has_value()) {
+        //     std::cerr << "[Error] (run): final validatePath removed node(s)\n";
+        //     return false;
+        // }
         if (checkIntersectPath()) {
             std::cerr << "[Error] (run): final checkIntersectPath failed\n";
             return false;
@@ -1499,6 +1668,10 @@ private:
     int m_layer{ -1 };
     int m_layers{ -1 };
     int m_gridSize{ -1 };
+    Value_t m_gridStepX{ -1 };
+    Value_t m_gridStepY{ -1 };
+    Value_t m_gridStartX{ -1 };
+    Value_t m_gridStartY{ -1 };
     Indices_t* m_stackSlice;
     std::string m_name;
     std::string m_pattern;
@@ -1506,6 +1679,7 @@ private:
     Stack_t m_stack;
     Indices_t m_path;
     Grid_t m_grid;
+    GridEdge_t m_gridEdges;
 };
 
 void parseCities(Cities_t& cities, const std::string& filename);

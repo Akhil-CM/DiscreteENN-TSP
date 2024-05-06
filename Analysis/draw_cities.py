@@ -39,7 +39,7 @@ def plot_coordinates(coordinates):
     min_x = min(x, default=0)
     min_y = min(y, default=0)
     min_coord = min(min_x, min_y)
-    x, y = np.array(x), max_coord - np.array(y)
+    x, y = np.array(x), max_y - np.array(y)
 
     plt.figure(figsize=(10, 8))  # Set the figure size
     plt.scatter(x, y, color='red')  # Plot with red points
@@ -48,8 +48,8 @@ def plot_coordinates(coordinates):
     plt.ylabel('Y coordinate')
     plt.grid(True)  # Enable grid for better visualization
     plt.gca().set_facecolor('white')  # Set background to white
-    plt.xlim(min_coord, max_coord)
-    plt.ylim(min_coord, max_coord)
+    plt.xlim(min_x, max_x)
+    plt.ylim(min_y, max_y)
     plt.show()
     print(f"min and max are : ({min_coord}, {max_coord})")
 
