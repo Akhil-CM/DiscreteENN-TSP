@@ -25,7 +25,7 @@ def parse_coordinates(filename):
                 coordinates.append((x, y))
     return coordinates
 
-def plot_coordinates(coordinates):
+def plot_coordinates(coordinates, city_name):
     """
     Plot the coordinates on a scatter plot with red points and a white background.
 
@@ -41,19 +41,23 @@ def plot_coordinates(coordinates):
     min_coord = min(min_x, min_y)
     x, y = np.array(x), max_y - np.array(y)
 
-    plt.figure(figsize=(10, 8))  # Set the figure size
-    plt.scatter(x, y, color='red')  # Plot with red points
-    plt.title('TSP Node Locations')
+    # plt.figure(figsize=(10, 8))  # Set the figure size
+    plt.scatter(x, y, color='red', s=8)  # Plot with red points
+    plt.title('TSP City Locations for ' + city_name)
     plt.xlabel('X coordinate')
     plt.ylabel('Y coordinate')
-    plt.grid(True)  # Enable grid for better visualization
+    # plt.grid(True)  # Enable grid for better visualization
     plt.gca().set_facecolor('white')  # Set background to white
-    plt.xlim(min_x, max_x)
-    plt.ylim(min_y, max_y)
+    plt.xlim(min_x - 100, max_x + 100)
+    plt.ylim(0 - 100, max_y-min_y + 100)
     plt.show()
     print(f"min and max are : ({min_coord}, {max_coord})")
 
 # Example usage
-filename = './Data/ALL_tsp/berlin52.tsp'  # Update this with the path to your TSP file
+city_name = 'berlin52'  # Update this with the path to your TSP file
+city_name = 'pcb442'  # Update this with the path to your TSP file
+# city_name = 'pr1002'  # Update this with the path to your TSP file
+# city_name = 'pr2392'  # Update this with the path to your TSP file
+filename = './Data/ALL_tsp/' + city_name + '.tsp'  # Update this with the path to your TSP file
 coordinates = parse_coordinates(filename)
-plot_coordinates(coordinates)
+plot_coordinates(coordinates, city_name)

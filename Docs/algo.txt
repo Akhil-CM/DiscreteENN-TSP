@@ -71,3 +71,16 @@ New Implementation 3:
 5. When a node is checked for removal:
     a. Find neighbours using the same process as mentioned in step 4.a
     b. Check whether the it's cost is still a minimum.
+
+
+New Implementation 4:
+---
+1. For each city, find 2 closest cities each in the four direction.
+2. Skip the second of the 2 cities if they are collinear
+3. Sort the cities based on the score, which is the insertion cost of the city.
+4. Find the minimum city
+5. From the minimum city, connect to the 2 closest cities with lowest score.
+6. Mark this as a parent city.
+7. Go to the left or right children city
+8. From the sorted edge scores, find the minimum edge with one of the ends as parent.
+9. Mark the current child as parent and it

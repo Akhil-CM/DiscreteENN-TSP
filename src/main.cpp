@@ -325,28 +325,28 @@ int runPipelineSingle(TSPInfo& info, const stdfs::path& data_path,
     // -------------------------------------------
     enn_tsp.constructInitialPath();
 
-    {
-#if (TSP_DEBUG_PRINT > 0)
-        std::cout << ("\n[Debug] (runPipelineSingle): validatePath\n");
-#endif
-        IndexExp_t<bool> erased = enn_tsp.validatePath();
-        if (erased.err()) {
-            utils::printErr("validatePath failed", "runPipelineSingle");
-            return 1;
-        }
+//     {
+// #if (TSP_DEBUG_PRINT > 0)
+//         std::cout << ("\n[Debug] (runPipelineSingle): validatePath\n");
+// #endif
+//         IndexExp_t<bool> erased = enn_tsp.validatePath();
+//         if (erased.err()) {
+//             utils::printErr("validatePath failed", "runPipelineSingle");
+//             return 1;
+//         }
 
-#if (TSP_DEBUG_PRINT > 0)
-        std::cout << ("\n[Debug] (runPipelineSingle): validatePath updateCostAll\n");
-#endif
-        if (erased.has_value() and path.size() > 2) {
-            const auto [idx_fail, err] = enn_tsp.updateCostAll();
-            if (err) {
-                std::cerr << "[Error] (runPipelineSingle): updateCostAll failed at index "
-                          << idx_fail << '\n';
-                return 1;
-            }
-        }
-    }
+// #if (TSP_DEBUG_PRINT > 0)
+//         std::cout << ("\n[Debug] (runPipelineSingle): validatePath updateCostAll\n");
+// #endif
+//         if (erased.has_value() and path.size() > 2) {
+//             const auto [idx_fail, err] = enn_tsp.updateCostAll();
+//             if (err) {
+//                 std::cerr << "[Error] (runPipelineSingle): updateCostAll failed at index "
+//                           << idx_fail << '\n';
+//                 return 1;
+//             }
+//         }
+//     }
 
     // -------------------------------------------
     // Run Discrete ENN
@@ -358,7 +358,7 @@ int runPipelineSingle(TSPInfo& info, const stdfs::path& data_path,
     if (not success) {
         std::cerr << "[Error] (runPipelineSingle): Discrete ENN run failed.\n";
         if (enn_tsp.drawFailed()) {
-            drawPath(path, cities, enn_tsp.drawCoords(), filename);
+            drawPath(enn_tsp, enn_tsp.drawCoords(), filename);
         }
         return 1;
     }
@@ -396,7 +396,7 @@ int runPipelineSingle(TSPInfo& info, const stdfs::path& data_path,
     std::cout << utils::Line_Str + "\n";
 
     if (enn_tsp.draw()) {
-        drawPath(path, cities, enn_tsp.drawCoords(), filename);
+        drawPath(enn_tsp, enn_tsp.drawCoords(), filename);
     }
     utils::printInfo("Finished algorithm for " + data_path.string(),
                      "runPipelineSingle");

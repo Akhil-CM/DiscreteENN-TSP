@@ -170,6 +170,7 @@ void makeGridInfo(DiscreteENN_TSP& enn_tsp, int depth, const MinMaxCoords& minma
     const Value_t step_sizeY{ std::abs(max_y - min_y)/grid_size };
     enn_tsp.gridStart() = std::make_pair(min_x, min_y);
     enn_tsp.gridSteps() = std::make_pair(step_sizeX, step_sizeY);
+    enn_tsp.gridStepMinMax() = std::make_pair(std::min(step_sizeX, step_sizeY), std::max(step_sizeX, step_sizeY));
     Cities_t& cities{ enn_tsp.cities() };
     for (City& city: cities) {
         const int x_cell = std::abs(city.x - min_x)/step_sizeX;
@@ -363,9 +364,56 @@ void fitPointsInWindow(MinMaxCoords& minmax_coords_copy, const sf::Vector2u& win
     max_y_copy = (max_y_copy - min_y_copy) * scaleY + margin;
 }
 
-void drawPath(const Indices_t& path, const Cities_t& cities, bool draw_coords,
-              const std::string& title, float close_time, int highlight, int)
+void drawThickLineSegment(sf::RenderWindow& window, const sf::Vector2f& start, const sf::Vector2f& end, float thickness, const sf::Color& color) {
+    sf::Vector2f direction = end - start;
+    float length = std::sqrt(direction.x * direction.x + direction.y * direction.y);
+    direction /= length;  // Normalize
+
+    // Perpendicular vector for thickness
+    sf::Vector2f perpendicular(-direction.y * thickness / 2, direction.x * thickness / 2);
+
+    // Four points of the thick line rectangle
+    sf::VertexArray quad(sf::Quads, 4);
+    quad[0].position = start + perpendicular;
+    quad[1].position = start - perpendicular;
+    quad[2].position = end - perpendicular;
+    quad[3].position = end + perpendicular;
+
+    // Set colors
+    for (int i = 0; i < 4; ++i) {
+        quad[i].color = color;
+    }
+
+    window.draw(quad);
+}
+
+void drawThickDashedLine(sf::RenderWindow& window, const sf::Vector2f& start, const sf::Vector2f& end, float dashLength, float spaceLength, float thickness, const sf::Color& color) {
+    sf::Vector2f direction = end - start;
+    float lineLength = std::sqrt(direction.x * direction.x + direction.y * direction.y);
+    direction /= lineLength;  // Normalize
+
+    sf::Vector2f currentPos = start;
+    bool drawDash = true;
+    while (lineLength > 0) {
+        float segmentLength = drawDash ? dashLength : spaceLength;
+        if (segmentLength > lineLength) segmentLength = lineLength;
+        sf::Vector2f segmentEnd = currentPos + direction * segmentLength;
+
+        if (drawDash) {
+            drawThickLineSegment(window, currentPos, segmentEnd, thickness, color);
+        }
+
+        currentPos = segmentEnd;
+        lineLength -= segmentLength;
+        drawDash = !drawDash;  // Alternate between dash and space
+    }
+}
+
+void drawPath(const DiscreteENN_TSP& enn_tsp, bool draw_coords,
+              const std::string& title, float close_time, int highlight, int pos_start, int pos_end)
 {
+    const Indices_t& path{ enn_tsp.path() };
+    const Cities_t& cities{enn_tsp.cities()};
     // Get the current desktop video mode
     const Value_t margin_size = 50;
     [[maybe_unused]] sf::VideoMode desktopMode =
@@ -432,6 +480,35 @@ void drawPath(const Indices_t& path, const Cities_t& cities, bool draw_coords,
         line_points.push_back({{min_x, min_y + (idx*step_y)}, {max_x, min_y + (idx*step_y)}});
     }
     fitPointsInWindow(line_points, window.getSize(), minmax_coords, margin_size);
+    std::vector<std::pair<sf::Vector2f, sf::Vector2f>> line_points2;
+    const auto [grid_step_min, grid_step_max] = enn_tsp.gridStepMinMax();
+    if (pos_start != -1 and pos_end != -1) {
+        const City& city_start{ cities[pos_start] };
+        const City& city_end{ cities[pos_end] };
+        const Value_t p1_x = city_start.x;
+        const Value_t p1_y = city_start.y;
+        const Value_t p2_x = city_end.x;
+        const Value_t p2_y = city_end.y;
+        const Value_t width_x = p2_x - p1_x;
+        const Value_t width_y = p2_y - p1_y;
+        const Value_t length = std::sqrt(width_x*width_x + width_y*width_y) ;
+        Value_t step_startX = p1_x;
+        Value_t step_startY = p1_y;
+        utils::printInfoFmt("{step_startX, step_startY} : {%f, %f}", "drawPath", step_startX, step_startY);
+        utils::printInfoFmt("{step_endY, step_endY} : {%f, %f}", "drawPath", p2_x, p2_y);
+        const int multiplierX = (p1_x < p2_x) ? 1 : -1;
+        const int multiplierY = (p1_y < p2_y) ? 1 : -1;
+        while ((multiplierX*step_startX < multiplierX*p2_x or utils::isEqual(step_startX, p2_x)) and (multiplierY*step_startY < multiplierY*p2_y or utils::isEqual(step_startY, p2_y))) {
+            const Value_t step_startX_prev{ step_startX };
+            const Value_t step_startY_prev{ step_startY };
+            step_startX += utils::getRound2((width_x/length)*grid_step_min/2.);
+            step_startY += utils::getRound2((width_y/length)*grid_step_min/2.);
+            utils::printInfoFmt("{step_startX_prev, step_startY_prev} and {step_startX, step_startY} : {%f, %f} and {%f, %f}", "drawPath", step_startX_prev, step_startY_prev, step_startX, step_startY);
+            line_points2.push_back({{step_startX_prev, step_startY_prev}, {step_startX, step_startY}});
+        }
+        utils::printInfoFmt("Drawing (pos_start, pos_end) : (%i, %i)", "drawPath", pos_start, pos_end);
+    }
+    fitPointsInWindow(line_points2, window.getSize(), minmax_coords, margin_size);
 
     sf::Clock clock;
     sf::Font font;
@@ -522,14 +599,29 @@ void drawPath(const Indices_t& path, const Cities_t& cities, bool draw_coords,
         }
         window.draw(polygon); // Draw the polygon
 
+        if (line_points2.size() != 0) {
+            for (const auto& line : line_points2) {
+                sf::VertexArray lineSegment(sf::Lines, 2);
+                lineSegment[0].position = line.first;
+                lineSegment[1].position = line.second;
+                lineSegment[0].color = sf::Color::Black;
+                lineSegment[1].color = sf::Color::Black;
+
+                window.draw(lineSegment);
+                drawThickDashedLine(window, line.first, line.second, 20, 10, 5, sf::Color::Black);
+            }
+        }
+
         window.display(); // Display what was drawn
     }
 }
 
 int images_count{1};
-void savePath(const Indices_t& path, const Cities_t& cities, bool draw_coords,
-              const std::string& title, int highlight, int)
+void savePath(const DiscreteENN_TSP& enn_tsp, bool draw_coords,
+              const std::string& title, int highlight, int pos_start, int pos_end)
 {
+    const Indices_t& path{ enn_tsp.path() };
+    const Cities_t& cities{enn_tsp.cities()};
     // Get the current desktop video mode
     const Value_t margin_size = 50;
     [[maybe_unused]] sf::VideoMode desktopMode =
@@ -585,6 +677,33 @@ void savePath(const Indices_t& path, const Cities_t& cities, bool draw_coords,
     for (int idx{0}; idx != layers; ++idx) {
         line_points.push_back({{min_x + (idx*step_x), min_y}, {min_x + (idx*step_x), max_y}});
         line_points.push_back({{min_x, min_y + (idx*step_y)}, {max_x, min_y + (idx*step_y)}});
+    }
+
+    std::vector<std::pair<sf::Vector2f, sf::Vector2f>> line_points2;
+    const auto [grid_step_min, grid_step_max] = enn_tsp.gridStepMinMax();
+    if (pos_start != -1 and pos_end != -1) {
+        const City& city_start{ cities[pos_start] };
+        const City& city_end{ cities[pos_end] };
+        const Value_t p1_x = city_start.x;
+        const Value_t p1_y = city_start.y;
+        const Value_t p2_x = city_end.x;
+        const Value_t p2_y = city_end.y;
+        const Value_t width_x = p2_x - p1_x;
+        const Value_t width_y = p2_y - p1_y;
+        const Value_t length = std::sqrt(width_x*width_x + width_y*width_y) ;
+        Value_t step_startX = p1_x;
+        Value_t step_startY = p1_y;
+        utils::printInfoFmt("{step_startX, step_startY} : {%f, %f}", "savePath", step_startX, step_startY);
+        utils::printInfoFmt("{step_endY, step_endY} : {%f, %f}", "savePath", p2_x, p2_y);
+        while ((step_startX < p2_x or utils::isEqual(step_startX, p2_x)) and (step_startY < p2_y or utils::isEqual(step_startY, p2_y))) {
+            const Value_t step_startX_prev{ step_startX };
+            const Value_t step_startY_prev{ step_startY };
+            step_startX += utils::getRound2((width_x/length)*grid_step_min/2.);
+            step_startY += utils::getRound2((width_y/length)*grid_step_min/2.);
+            utils::printInfoFmt("{step_startX_prev, step_startY_prev} and {step_startX, step_startY} : {%f, %f} and {%f, %f}", "savePath", step_startX_prev, step_startY_prev, step_startX, step_startY);
+            line_points2.push_back({{step_startX_prev, step_startY_prev}, {step_startX, step_startY}});
+        }
+        utils::printInfoFmt("Drawing (pos_start, pos_end) : (%i, %i)", "savePath", pos_start, pos_end);
     }
 
     sf::Clock clock;
@@ -659,6 +778,19 @@ void savePath(const Indices_t& path, const Cities_t& cities, bool draw_coords,
         window.draw(marker);
     }
     window.draw(polygon); // Draw the polygon
+
+    if (line_points2.size() != 0) {
+        for (const auto& line : line_points2) {
+            sf::VertexArray lineSegment(sf::Lines, 2);
+            lineSegment[0].position = line.first;
+            lineSegment[1].position = line.second;
+            lineSegment[0].color = sf::Color::Black;
+            lineSegment[1].color = sf::Color::Black;
+
+            window.draw(lineSegment);
+            drawThickDashedLine(window, line.first, line.second, 20, 10, 5, sf::Color::Black);
+        }
+    }
 
     sf::Texture texture;
     texture.create(window.getSize().x, window.getSize().y);

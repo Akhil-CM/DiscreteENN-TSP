@@ -127,12 +127,12 @@ template <> inline bool utils::MatchItem<Node_t>::operator()(const Node_t& node)
     return (node->id == m_item->id);
 }
 
-void drawPath(const Indices_t& path, const Cities_t& cities, bool draw_coords,
+class DiscreteENN_TSP;
+void drawPath(const DiscreteENN_TSP& enn_tsp, bool draw_coords,
               const std::string& title, float close_time = 3600.0,
-              int highlight = -1, int highlight_line = -1);
-void savePath(const Indices_t& path, const Cities_t& cities, bool draw_coords,
-              const std::string& title,
-              int highlight = -1, int highlight_line = -1);
+              int highlight = -1, int pos_start = -1, int pos_end = -1);
+void savePath(const DiscreteENN_TSP& enn_tsp, bool draw_coords,
+              const std::string& title, int highlight = -1, int pos_start = -1, int pos_end = -1);
 
 class MinMaxCoords
 {
@@ -286,6 +286,18 @@ public:
     {
         return m_path;
     }
+    const Cities_t& cities() const
+    {
+        return m_cities;
+    }
+    const Stack_t& stack() const
+    {
+        return m_stack;
+    }
+    const Indices_t& path() const
+    {
+        return m_path;
+    }
     Grid_t& grid()
     {
         return m_grid;
@@ -313,6 +325,18 @@ public:
     auto gridSteps()
     {
         return std::tie(m_gridStepX, m_gridStepY);
+    }
+    auto gridSteps() const
+    {
+        return std::tuple(m_gridStepX, m_gridStepY);
+    }
+    auto gridStepMinMax()
+    {
+        return std::tie(m_gridStepMin, m_gridStepMax);
+    }
+    auto gridStepMinMax() const
+    {
+        return std::tuple(m_gridStepMin, m_gridStepMax);
     }
     auto gridStart()
     {
@@ -1153,9 +1177,9 @@ public:
     IndexExp_t<bool> markEdgeCells(Index_t pos_start, Index_t pos_end)
     {
         IndexOpt_t pos_erased{ std::nullopt };
-        if (m_path.size() == 3) {
-            return IndexExp_t<bool>{ pos_erased, false };
-        }
+        // if (m_path.size() == 3) {
+        //     return IndexExp_t<bool>{ pos_erased, false };
+        // }
         const City& city_start{ m_cities[pos_start] };
         const City& city_end{ m_cities[pos_end] };
         const Value_t p1_x = city_start.x;
@@ -1167,7 +1191,9 @@ public:
         const Value_t length = std::sqrt(width_x*width_x + width_y*width_y) ;
         Value_t step_startX = p1_x;
         Value_t step_startY = p1_y;
-        while ((step_startX < p2_x or utils::isEqual(step_startX, p2_x)) and (step_startY < p2_y or utils::isEqual(step_startY, p2_y))) {
+        const int multiplierX = (p1_x < p2_x) ? 1 : -1;
+        const int multiplierY = (p1_y < p2_y) ? 1 : -1;
+        while ((multiplierX*step_startX < multiplierX*p2_x or utils::isEqual(step_startX, p2_x)) and (multiplierY*step_startY < multiplierY*p2_y or utils::isEqual(step_startY, p2_y))) {
             if (m_fromScratch) {
                 break;
             }
@@ -1176,14 +1202,22 @@ public:
                 break;
             }
             const auto [x_cell, y_cell] = toGridCell(step_startX, step_startY);
+            if (x_cell >= m_gridSize or y_cell >= m_gridSize) {
+                utils::printInfoFmt("Invaid cell indices : (%i, %i)", "markEdgeCells", x_cell, y_cell);
+                throw std::runtime_error{utils::stringFmt("Invaid cell indices : (%i, %i)", x_cell, y_cell)};
+            }
             Edges_t& edges = m_gridEdges[x_cell][y_cell];
             auto inserted = edges.insert(std::make_pair(pos_start, pos_end));
             if (not inserted.second) {
-                step_startX += utils::getRound2((width_x/length)*m_gridStepX/2.);
-                step_startY += utils::getRound2((width_y/length)*m_gridStepY/2.);
+                step_startX += utils::getRound2((width_x/length)*m_gridStepMin/2.);
+                step_startY += utils::getRound2((width_y/length)*m_gridStepMin/2.);
                 continue;
             }
             for (auto it{ edges.begin() }; it != edges.end();) {
+                if (city_start.on_stack or city_end.on_stack) {
+                    unmarkEdgeCells(pos_start, pos_end);
+                    break;
+                }
                 const auto [pos, pos_next] = *it;
                 if (pos == pos_start or pos == pos_end) {
                     ++it;
@@ -1196,15 +1230,33 @@ public:
                 if (hasIntersection(city_start, city_end, m_cities[pos], m_cities[pos_next])) {
                     auto [idx, idx_next] = findEdge(pos, pos_next);
                     if (idx == -1 or idx_next == -1) {
-                        utils::printInfoFmt("Current cities for path size %u", "markEdgeCells", m_path.size());
-                        for (const City& tmp: m_cities) {
-                            tmp.print();
+                        // utils::printInfoFmt("Current cities for path size %u", "markEdgeCells", m_path.size());
+                        // for (const City& tmp: m_cities) {
+                        //     tmp.print();
+                        // }
+                        utils::printInfoFmt("Found intersection for (%i, %i) and (%i, %i)", "markEdgeCells", pos_start, pos_end, pos, pos_next);
+                        utils::printInfoFmt("Current path size %u", "markEdgeCells", m_path.size());
+                        for (const Index_t& tmp: m_path) {
+                            m_cities[tmp].print();
+                        }
+                        utils::printInfoFmt("Edges size : %u\nEdges elements", "markEdgeCells", edges.size());
+                        for (const auto& edge : edges) {
+                            utils::printInfoFmt("Edge : (%i, %i)", "markEdgeCells", edge.first, edge.second);
                         }
                         throw std::runtime_error{utils::stringFmt("[Error] (markEdgeCells): invalid removal indices: %i, %i from positions %i and %i", idx, idx_next, pos, pos_next)};
                     }
+                    {
+                        const Index_t pos_prev = m_path[properIndex(int(idx) - 1)];
+                        unmarkEdgeCells(pos_prev, pos);
+                    }
+                    {
+                        const Index_t pos_next_next = m_path[properIndex(idx_next + 1)];
+                        unmarkEdgeCells(pos_next, pos_next_next);
+                    }
+                    unmarkEdgeCells(pos, pos_next);
                     removeNode(idx);
                     removeNode(properIndex(idx));
-                    unmarkEdgeCells(pos, pos_next);
+                    // edges.erase(it);
                     if (pos_erased.has_value()) {
                         pos_erased =
                             std::min(*pos_erased, std::min(pos,
@@ -1213,7 +1265,6 @@ public:
                         pos_erased =
                             std::min(pos, pos_next);
                     }
-                    it = edges.erase(it);
                     if (m_path.size() == 2) {
                         m_fromScratch = true;
                         break;
@@ -1231,12 +1282,13 @@ public:
                     if (city_start.on_stack or city_end.on_stack) {
                         break;
                     }
+                    it = edges.begin();
                 } else {
                     ++it;
                 }
             }
-            step_startX += utils::getRound2((width_x/length)*m_gridStepX/2.);
-            step_startY += utils::getRound2((width_y/length)*m_gridStepY/2.);
+            step_startX += utils::getRound2((width_x/length)*m_gridStepMin/2.);
+            step_startY += utils::getRound2((width_y/length)*m_gridStepMin/2.);
         }
 
         return IndexExp_t<bool>{ pos_erased, false };
@@ -1256,12 +1308,26 @@ public:
         const Value_t length = std::sqrt(width_x*width_x + width_y*width_y) ;
         Value_t step_startX = p1_x;
         Value_t step_startY = p1_y;
-        while ((step_startX < p2_x or utils::isEqual(step_startX, p2_x)) and (step_startY < p2_y or utils::isEqual(step_startY, p2_y))) {
+        const int multiplierX = (p1_x < p2_x) ? 1 : -1;
+        const int multiplierY = (p1_y < p2_y) ? 1 : -1;
+        while ((multiplierX*step_startX < multiplierX*p2_x or utils::isEqual(step_startX, p2_x)) and (multiplierY*step_startY < multiplierY*p2_y or utils::isEqual(step_startY, p2_y))) {
             const auto [x_cell, y_cell] = toGridCell(step_startX, step_startY);
+            if (x_cell >= m_gridSize or y_cell >= m_gridSize) {
+                utils::printInfoFmt("Invaid cell indices : (%i, %i)", "unmarkEdgeCells", x_cell, y_cell);
+                throw std::runtime_error{utils::stringFmt("Invaid cell indices : (%i, %i)", x_cell, y_cell)};
+            }
             m_gridEdges[x_cell][y_cell].erase(std::make_pair(pos_start, pos_end));
-            step_startX += utils::getRound2((width_x/length)*m_gridStepX/2.);
-            step_startY += utils::getRound2((width_y/length)*m_gridStepY/2.);
+            step_startX += utils::getRound2((width_x/length)*m_gridStepMin/2.);
+            step_startY += utils::getRound2((width_y/length)*m_gridStepMin/2.);
         }
+        step_startX += utils::getRound2((width_x/length)*m_gridStepMin/2.);
+        step_startY += utils::getRound2((width_y/length)*m_gridStepMin/2.);
+        const auto [x_cell, y_cell] = toGridCell(step_startX, step_startY);
+        if (x_cell >= m_gridSize or y_cell >= m_gridSize) {
+            utils::printInfoFmt("Invaid cell indices : (%i, %i)", "unmarkEdgeCells", x_cell, y_cell);
+            throw std::runtime_error{utils::stringFmt("Invaid cell indices : (%i, %i)", x_cell, y_cell)};
+        }
+        m_gridEdges[x_cell][y_cell].erase(std::make_pair(pos_start, pos_end));
 
     }
 
@@ -1371,7 +1437,7 @@ public:
                 continue;
             }
             m_stackSlice = &(m_stack[m_layer]);
-            const int stack_size = (*m_stackSlice).size();
+            const int stack_size = m_stack[m_layer].size();
             for (int idx{0}; idx != stack_size; ++idx) {
                 const Index_t pos{ stackPopBack() };
                 m_path.push_back(pos);
@@ -1380,6 +1446,9 @@ public:
                     break;
                 }
             }
+            if (static_cast<int>(m_path.size()) == m_initialSize) {
+                break;
+            }
         }
         for (Index_t idx{0}; idx != m_path.size(); ++idx) {
             City& city{ m_cities[m_path[idx]] };
@@ -1387,7 +1456,10 @@ public:
             const Index_t pos_next = m_path[properIndex(int(idx) + 1)];
             city.id_prev = pos_prev;
             city.id_next = pos_next;
-            markEdgeCells(city.id, pos_next);
+        }
+        for (Index_t idx{0}; idx != m_path.size(); ++idx) {
+            City& city{ m_cities[m_path[idx]] };
+            markEdgeCells(city.id, city.id_next);
         }
         if (m_path.size() == 2) {
             m_fromScratch = true;
@@ -1417,7 +1489,12 @@ public:
         distrib_t distrib(0, num_cities - 1);
         std::unordered_set<std::string> pattern_hashes;
         int idx_added{ -1 };
-        m_layer = m_layers;
+        for (m_layer = m_layers; m_layer != -1; --m_layer) {
+            if (m_stack.count(m_layer) != 0 and m_stack[m_layer].size() != 0) {
+                m_stackSlice = &(m_stack[m_layer]);
+                break;
+            }
+        }
         while (true) {
             Index_t pos{ stackPopBack() };
             if (m_fromScratch) {
@@ -1465,7 +1542,7 @@ public:
                     std::cout.flush();
                     std::cerr.flush();
                     std::this_thread::sleep_for(sleep_time);
-                    drawPath(m_path, m_cities, false, m_name, loop_time,
+                    drawPath(*this, false, m_name, loop_time,
                              m_path[idx_added]);
                 }
             }
@@ -1542,11 +1619,13 @@ public:
             if (checkIntersectPath()) {
                 utils::printErrFmt(
                     "intersection from adding node at %i for city %i. Current path size %u", "run", idx_added, pos, m_path.size());
-                drawPath(m_path, m_cities, false, m_name, 5, pos);
+                drawPath(*this, false, m_name, 5, pos, pos, pos_next);
+                savePath(*this, false, m_name, pos, pos, pos_next);
                 if (erased.has_value()) {
                     utils::printErrFmt(
                         "intersection from adding node at %i for city %i and removing city %i. Current path size %u", "run", idx_added, pos, erased.value(), m_path.size());
-                    drawPath(m_path, m_cities, false, m_name, 5, erased.value());
+                    drawPath(*this, false, m_name, 5, erased.value(), pos, pos_next);
+                    savePath(*this, false, m_name, erased.value(), pos, pos_next);
                 }
                 std::chrono::seconds sleep_time{ 5 };
                 std::this_thread::sleep_for(sleep_time);
@@ -1587,7 +1666,7 @@ public:
                     std::cout.flush();
                     std::cerr.flush();
                     std::this_thread::sleep_for(sleep_time);
-                    drawPath(m_path, m_cities, false, m_name, loop_time,
+                    drawPath(*this, false, m_name, loop_time,
                              erased.value());
                 } else {
                     ++loop_count;
@@ -1670,6 +1749,8 @@ private:
     int m_gridSize{ -1 };
     Value_t m_gridStepX{ -1 };
     Value_t m_gridStepY{ -1 };
+    Value_t m_gridStepMin{ -1 };
+    Value_t m_gridStepMax{ -1 };
     Value_t m_gridStartX{ -1 };
     Value_t m_gridStartY{ -1 };
     Indices_t* m_stackSlice;
