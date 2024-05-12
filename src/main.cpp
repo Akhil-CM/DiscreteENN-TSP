@@ -351,6 +351,9 @@ int runPipelineSingle(TSPInfo& info, const stdfs::path& data_path,
     // -------------------------------------------
     // Run Discrete ENN
     // -------------------------------------------
+#if TSP_DRAW_ROOT > 0
+    TApplication* app = new TApplication("ROOT Application", nullptr, nullptr) ;
+#endif
     std::cout << ("\n[Info] (runPipelineSingle): Run Discrete ENN Algorithm\n");
     TimePoint_t start_time = std::chrono::steady_clock::now();
     const bool success = enn_tsp.run(rng);
@@ -362,6 +365,10 @@ int runPipelineSingle(TSPInfo& info, const stdfs::path& data_path,
         }
         return 1;
     }
+#if TSP_DRAW_ROOT > 0
+    // app->Run() ;
+    delete app ;
+#endif
     auto delta = std::chrono::duration_cast<TimeUnit_t>(end_time - start_time);
     const auto duration = delta.count();
     std::cout << "\n" + utils::Line_Str + "\n";

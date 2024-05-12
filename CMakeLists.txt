@@ -44,6 +44,32 @@ target_sources(tsp_enn_lib
     "${HEADER_LIST}"
 )
 
+find_program(ROOT_CONFIG_EXEC root-config)
+
+if(NOT ROOT_CONFIG_EXEC)
+    message(FATAL_ERROR "root-config not found")
+endif()
+
+execute_process(
+    COMMAND ${ROOT_CONFIG_EXEC} --cflags
+    OUTPUT_VARIABLE ROOT_CXX_FLAGS
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+
+execute_process(
+    COMMAND ${ROOT_CONFIG_EXEC} --libs
+    OUTPUT_VARIABLE ROOT_LD_FLAGS
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+
+# Separate the flags into a CMake list
+separate_arguments(ROOT_CXX_FLAGS_LIST UNIX_COMMAND "${ROOT_CXX_FLAGS}")
+separate_arguments(ROOT_LD_FLAGS_LIST UNIX_COMMAND "${ROOT_LD_FLAGS}")
+
+# Set the target properties
+target_compile_options(tsp_enn_lib PRIVATE ${ROOT_CXX_FLAGS_LIST})
+target_link_libraries(tsp_enn_lib PRIVATE ${ROOT_LD_FLAGS_LIST})
+
 target_include_directories(tsp_enn_lib PUBLIC "${PROJECT_SOURCE_DIR}/include")
 target_link_libraries(tsp_enn_lib PRIVATE
 		      sfml-graphics

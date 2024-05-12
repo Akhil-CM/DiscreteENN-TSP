@@ -11,6 +11,13 @@
 
 #ifdef TSP_DRAW
 #include <SFML/Graphics.hpp>
+#include <TMarker.h>
+#include <TH1F.h>
+#include <TGraph.h>
+#include <TMultiGraph.h>
+#include <TCanvas.h>
+#include <TApplication.h>
+#include <TSystem.h>
 #endif
 
 void parseCities(Cities_t& cities, const std::string& filename)
@@ -849,3 +856,87 @@ bool readDistances(const std::string& filename, TSPInfoVect_t& infos)
 
     return true;
 }
+
+#if TSP_DRAW_ROOT > 0
+void drawState(const std::string& state_file, const DiscreteENN_TSP& enn_tsp)
+{
+
+    const std::size_t WINDOW_WIDTH = 1000 ;
+    const std::size_t WINDOW_HEIGHT = 1000 ;
+    TCanvas *canvas = new TCanvas("c", "Canvas", 500, 500, WINDOW_WIDTH, WINDOW_HEIGHT) ;
+
+    const Indices_t& path{ enn_tsp.path() };
+    const Cities_t& cities{ enn_tsp.cities() };
+
+
+    const std::size_t MARKER_COLOR_STACK = kRed ;
+    const std::size_t MARKER_COLOR_PATH = kBlue ;
+    const auto MARKER_SIZE_STACK = 1. ;
+    const auto MARKER_SIZE_PATH = 1. ;
+    const std::size_t LINE_COLOR = kRed ;
+    const std::size_t LINE_STYLE = 1 ;
+
+    const std::size_t num_cites = cities.size() ;
+    const std::size_t num_nodes = path.size() ;
+
+    MinMaxCoords minmax_coords;
+    minmax_coords.update(cities);
+    [[maybe_unused]] const auto [min_coord, max_coord] = minmax_coords.minmax();
+    const auto [min_x, max_x, min_y, max_y] = minmax_coords.value();
+    TH1F *frame = canvas->DrawFrame(0, 0, max_coord, max_coord) ;
+    // frame->GetYaxis()->SetRangeUser(0, IMG_HEIGHT) ;
+    // frame->SetNdivisions(IMG_HEIGHT/grid_width + 1, "Y") ;
+    // frame->SetNdivisions(IMG_WIDTH/grid_width + 1, "X") ;
+    // const std::string &title_frame = enn_tsp.name() ;
+    frame->SetTitle( enn_tsp.name().c_str() ) ;
+
+    TGraph *graph_stack = new TGraph(num_cites);
+    for (const City& city : cities) {
+        graph_stack->SetPoint(city.id, city.x, city.y);
+    }
+    graph_stack->SetLineWidth(0) ;
+    graph_stack->SetMarkerColor(MARKER_COLOR_STACK) ;
+    graph_stack->SetMarkerSize(MARKER_SIZE_STACK) ;
+    graph_stack->SetMarkerStyle(kFullCircle) ;
+
+    std::vector<Value_t> x_coords;
+    x_coords.reserve(num_nodes + 1);
+    std::vector<Value_t> y_coords;
+    y_coords.reserve(num_nodes + 1);
+    for (const Index_t& index : path) {
+        const City& city{ cities[index] };
+        x_coords.push_back(city.x);
+        y_coords.push_back(city.y);
+    }
+    const City& city_first{ cities[path[0]] };
+    x_coords.push_back(city_first.x);
+    y_coords.push_back(city_first.y);
+
+    // TMultiGraph *mult_graph = new TMultiGraph("mg", "Rings plot") ;
+    // TGraph *graph_gen = new TGraph(INPUT_FILE.c_str()) ; graph_gen->SetLineColor(kBlue) ;
+    TGraph *graph_path = new TGraph(num_nodes + 1, x_coords.data(), y_coords.data()) ;
+    graph_path->SetLineColor(LINE_COLOR) ;
+    graph_path->SetLineWidth(2) ;
+    graph_path->SetMarkerColor(MARKER_COLOR_PATH) ;
+    graph_path->SetMarkerSize(MARKER_SIZE_PATH) ;
+    graph_path->SetMarkerStyle(kFullCircle) ;
+    // graph_path->Draw("LP") ;
+    // mult_graph->Draw("P") ;
+
+    TMultiGraph *mg = new TMultiGraph();
+    mg->Add(graph_stack, "P");
+    mg->Add(graph_path, "LP");
+    mg->Draw("A");
+
+    canvas->Modified() ;
+    canvas->Update() ;
+    canvas->Show() ;
+    // gSystem->ProcessEvents();  // Handle GUI events during the loop
+    // gSystem->Sleep(1000);  // Delay to see the update
+    gPad->WaitPrimitive();
+    // app->Run() ;
+
+    delete canvas;
+}
+#endif
+

@@ -7,6 +7,7 @@
 #define TSP_DEBUG_PRINT 2
 #define TSP_DRAW_DISPLAY 0
 #define TSP_DRAW_SAVE 0
+#define TSP_DRAW_ROOT 1
 #define TSP_ERROR 0
 
 #define TSP_TIME 2
@@ -26,6 +27,10 @@
 
 #if TSP_DRAW_DISPLAY > 0
 #include <thread>
+#endif
+
+#if TSP_DRAW_ROOT > 0
+#include <TApplication.h>
 #endif
 
 #if TSP_DEBUG_PRINT > 0
@@ -128,6 +133,9 @@ template <> inline bool utils::MatchItem<Node_t>::operator()(const Node_t& node)
 }
 
 class DiscreteENN_TSP;
+#if TSP_DRAW_ROOT > 0
+void drawState(const std::string& state_file, const DiscreteENN_TSP& enn_tsp);
+#endif
 void drawPath(const DiscreteENN_TSP& enn_tsp, bool draw_coords,
               const std::string& title, float close_time = 3600.0,
               int highlight = -1, int pos_start = -1, int pos_end = -1);
@@ -307,6 +315,10 @@ public:
         return m_gridEdges;
     }
     std::string& name()
+    {
+        return m_name;
+    }
+    const std::string& name() const
     {
         return m_name;
     }
@@ -1522,6 +1534,9 @@ public:
                 return false;
             }
 
+#if TSP_DRAW_ROOT > 0
+            drawState("", *this);
+#endif
 #if TSP_DEBUG_PRINT > 0
             if (print_pos) {
                 if (loop_count > loop_check) {
