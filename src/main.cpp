@@ -308,7 +308,8 @@ int runPipelineSingle(TSPInfo& info, const stdfs::path& data_path,
     // -------------------------------------------
     // Update grid info from final layer for cities
     // -------------------------------------------
-    makeGridInfo(enn_tsp, depth, minmax_coords);
+    // makeGridInfo(enn_tsp, depth, minmax_coords);
+    makeConnections(enn_tsp);
 
     // -------------------------------------------
     // Initialize

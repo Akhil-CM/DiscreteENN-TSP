@@ -83,4 +83,6 @@ New Implementation 4:
 6. Mark this as a parent city.
 7. Go to the left or right children city
 8. From the sorted edge scores, find the minimum edge with one of the ends as parent.
-9. Mark the current child as parent and it
+9. Mark the current child as parent and grandchildren as children
+10. If a repeating pattern is found, pick an alternate turn at one of the children.
+11. If a repeating pattern still exists, move the current parrent one level up and choose an alternate turn.

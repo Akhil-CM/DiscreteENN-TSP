@@ -17,6 +17,11 @@ namespace stdfs = std::filesystem;
 
 using namespace std::string_literals;
 
+const float pi_1_4{ static_cast<float>(std::atan2(1, 1)) };
+const float pi_1_2{ static_cast<float>(std::atan2(1, 0)) };
+const float pi_3_4{ static_cast<float>(std::atan2(1, -1)) };
+const float pi{ static_cast<float>(std::atan2(0, -1)) };
+
 // Floating point precision helpers
 constexpr float epsilonf = 1e-2;
 inline bool isEqual(float a, float b)

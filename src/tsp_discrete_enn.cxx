@@ -3,9 +3,11 @@
 #include "tsp_discrete_enn.hpp"
 
 #include <SFML/Window/WindowStyle.hpp>
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
+#include <stdexcept>
 
 #include "utils.hpp"
 
@@ -77,14 +79,14 @@ void parseCities(Cities_t& cities, const std::string& filename)
 }
 
 auto makeStackLayers(DiscreteENN_TSP& enn_tsp, const Cities_t& quadrant,
-                      const MinMaxCoords& minmax_coords, int depth)
+                     const MinMaxCoords& minmax_coords, int depth)
 {
     Cities_t& cities{ enn_tsp.cities() };
     CityLayers_t& stack{ enn_tsp.stack() };
     if (quadrant.empty()) {
         return std::make_pair(0, -1);
     }
-    const auto [min_x, max_x, min_y, max_y] = minmax_coords.value();
+    const auto [min_x, max_x, min_y, max_y] = minmax_coords.valueConst();
     Value_t mid_x = (min_x + max_x) / 2.0;
     Value_t mid_y = (min_y + max_y) / 2.0;
 
@@ -114,28 +116,28 @@ auto makeStackLayers(DiscreteENN_TSP& enn_tsp, const Cities_t& quadrant,
         ++added;
     }
     const int depth_next = depth + 1;
-    int depth_max{depth};
+    int depth_max{ depth };
     {
-        auto [tmp_add, tmp_depth] = makeStackLayers(enn_tsp,
-            quadrants[0], { min_x, mid_x, min_y, mid_y }, depth_next);
+        auto [tmp_add, tmp_depth] = makeStackLayers(
+            enn_tsp, quadrants[0], { min_x, mid_x, min_y, mid_y }, depth_next);
         added += tmp_add;
         depth_max = std::max(tmp_depth, depth_max);
     }
     {
-        auto [tmp_add, tmp_depth] = makeStackLayers(enn_tsp,
-            quadrants[1], { mid_x, max_x, min_y, mid_y }, depth_next);
+        auto [tmp_add, tmp_depth] = makeStackLayers(
+            enn_tsp, quadrants[1], { mid_x, max_x, min_y, mid_y }, depth_next);
         added += tmp_add;
         depth_max = std::max(tmp_depth, depth_max);
     }
     {
-        auto [tmp_add, tmp_depth] = makeStackLayers(enn_tsp,
-            quadrants[2], { min_x, mid_x, mid_y, max_y }, depth_next);
+        auto [tmp_add, tmp_depth] = makeStackLayers(
+            enn_tsp, quadrants[2], { min_x, mid_x, mid_y, max_y }, depth_next);
         added += tmp_add;
         depth_max = std::max(tmp_depth, depth_max);
     }
     {
-        auto [tmp_add, tmp_depth] = makeStackLayers(enn_tsp,
-            quadrants[3], { mid_x, max_x, mid_y, max_y }, depth_next);
+        auto [tmp_add, tmp_depth] = makeStackLayers(
+            enn_tsp, quadrants[3], { mid_x, max_x, mid_y, max_y }, depth_next);
         added += tmp_add;
         depth_max = std::max(tmp_depth, depth_max);
     }
@@ -161,27 +163,30 @@ int createStack(DiscreteENN_TSP& enn_tsp, const MinMaxCoords& minmax_coords)
     return depth;
 }
 
-void makeGridInfo(DiscreteENN_TSP& enn_tsp, int depth, const MinMaxCoords& minmax_coords)
+void makeGridInfo(DiscreteENN_TSP& enn_tsp, int depth,
+                  const MinMaxCoords& minmax_coords)
 {
     Grid_t& grid{ enn_tsp.grid() };
     GridEdge_t& grid_edges{ enn_tsp.gridEdges() };
-    const auto [min_x, max_x, min_y, max_y] = minmax_coords.value();
+    const auto [min_x, max_x, min_y, max_y] = minmax_coords.valueConst();
     int& grid_size{ enn_tsp.gridSize() };
     grid_size = 0x01 << depth;
     [[maybe_unused]] const int num_cells = grid_size * grid_size;
     grid.clear();
     grid = Grid_t(grid_size, std::vector<Indices_t>(grid_size, Indices_t{}));
     grid_edges.clear();
-    grid_edges = GridEdge_t(grid_size, std::vector<Edges_t>(grid_size, Edges_t{}));
-    const Value_t step_sizeX{ std::abs(max_x - min_x)/grid_size };
-    const Value_t step_sizeY{ std::abs(max_y - min_y)/grid_size };
+    grid_edges =
+        GridEdge_t(grid_size, std::vector<Edges_t>(grid_size, Edges_t{}));
+    const Value_t step_sizeX{ std::abs(max_x - min_x) / grid_size };
+    const Value_t step_sizeY{ std::abs(max_y - min_y) / grid_size };
     enn_tsp.gridStart() = std::make_pair(min_x, min_y);
     enn_tsp.gridSteps() = std::make_pair(step_sizeX, step_sizeY);
-    enn_tsp.gridStepMinMax() = std::make_pair(std::min(step_sizeX, step_sizeY), std::max(step_sizeX, step_sizeY));
+    enn_tsp.gridStepMinMax() = std::make_pair(std::min(step_sizeX, step_sizeY),
+                                              std::max(step_sizeX, step_sizeY));
     Cities_t& cities{ enn_tsp.cities() };
-    for (City& city: cities) {
-        const int x_cell = std::abs(city.x - min_x)/step_sizeX;
-        const int y_cell = std::abs(city.y - min_y)/step_sizeY;
+    for (City& city : cities) {
+        const int x_cell = std::abs(city.x - min_x) / step_sizeX;
+        const int y_cell = std::abs(city.y - min_y) / step_sizeY;
         city.x_cell = x_cell == grid_size ? grid_size - 1 : x_cell;
         city.y_cell = y_cell == grid_size ? grid_size - 1 : y_cell;
         grid[city.x_cell][city.y_cell].push_back(city.id);
@@ -190,7 +195,7 @@ void makeGridInfo(DiscreteENN_TSP& enn_tsp, int depth, const MinMaxCoords& minma
 }
 
 Value_t insertionCost(const City& new_city, const City& cityA,
-                             const City& cityB)
+                      const City& cityB)
 {
     const Value_t cost = getDistance(new_city, cityA) +
                          getDistance(new_city, cityB) -
@@ -200,7 +205,7 @@ Value_t insertionCost(const City& new_city, const City& cityA,
 }
 
 bool isInside(const City& city, const City& cityA, const City& cityB,
-                     const City& cityC)
+              const City& cityC)
 {
     const Value_t area_total = getArea(cityA, cityB, cityC);
 
@@ -221,8 +226,8 @@ bool isInside(const City& city, const City& cityA, const City& cityB,
     return utils::isEqual(area_total, (area1 + area2 + area3));
 }
 
-bool hasIntersection(const City& cityA1, const City& cityA2,
-                            const City& cityB1, const City& cityB2)
+bool hasIntersection(const City& cityA1, const City& cityA2, const City& cityB1,
+                     const City& cityB2)
 {
     // if (sameCoords(cityA1, cityB1) or sameCoords(cityA1, cityB2) or
     //     sameCoords(cityA2, cityB1) or sameCoords(cityA2, cityB2)) {
@@ -293,7 +298,7 @@ void fitPointsInWindow(VectSF_t& points, const sf::Vector2u& window_size,
     if (points.empty())
         return; // Check if the vector is not empty
 
-    const auto [min_x, max_x, min_y, max_y] = minmax_coords.value();
+    const auto [min_x, max_x, min_y, max_y] = minmax_coords.valueConst();
 
     Value_t width{ max_x - min_x };
     Value_t height{ max_y - min_y };
@@ -314,7 +319,7 @@ void fitPointsInWindow(Cities_t& cities, const sf::Vector2u& window_size,
     if (cities.empty())
         return; // Check if the vector is not empty
 
-    const auto [min_x, max_x, min_y, max_y] = minmax_coords.value();
+    const auto [min_x, max_x, min_y, max_y] = minmax_coords.valueConst();
 
     Value_t width{ max_x - min_x };
     Value_t height{ max_y - min_y };
@@ -329,13 +334,14 @@ void fitPointsInWindow(Cities_t& cities, const sf::Vector2u& window_size,
     }
 }
 
-void fitPointsInWindow(std::vector<std::pair<sf::Vector2f, sf::Vector2f>>& lines, const sf::Vector2u& window_size,
+void fitPointsInWindow(std::vector<std::pair<sf::Vector2f, sf::Vector2f>>& lines,
+                       const sf::Vector2u& window_size,
                        const MinMaxCoords& minmax_coords, Value_t margin)
 {
     if (lines.empty())
         return; // Check if the vector is not empty
 
-    const auto [min_x, max_x, min_y, max_y] = minmax_coords.value();
+    const auto [min_x, max_x, min_y, max_y] = minmax_coords.valueConst();
 
     Value_t width{ max_x - min_x };
     Value_t height{ max_y - min_y };
@@ -353,10 +359,11 @@ void fitPointsInWindow(std::vector<std::pair<sf::Vector2f, sf::Vector2f>>& lines
     }
 }
 
-void fitPointsInWindow(MinMaxCoords& minmax_coords_copy, const sf::Vector2u& window_size,
-                       Value_t margin)
+void fitPointsInWindow(MinMaxCoords& minmax_coords_copy,
+                       const sf::Vector2u& window_size, Value_t margin)
 {
-    const auto [min_x_copy, max_x_copy, min_y_copy, max_y_copy] = minmax_coords_copy.value();
+    const auto [min_x_copy, max_x_copy, min_y_copy, max_y_copy] =
+        minmax_coords_copy.value();
 
     Value_t width{ max_x_copy - min_x_copy };
     Value_t height{ max_y_copy - min_y_copy };
@@ -371,13 +378,18 @@ void fitPointsInWindow(MinMaxCoords& minmax_coords_copy, const sf::Vector2u& win
     max_y_copy = (max_y_copy - min_y_copy) * scaleY + margin;
 }
 
-void drawThickLineSegment(sf::RenderWindow& window, const sf::Vector2f& start, const sf::Vector2f& end, float thickness, const sf::Color& color) {
+void drawThickLineSegment(sf::RenderWindow& window, const sf::Vector2f& start,
+                          const sf::Vector2f& end, float thickness,
+                          const sf::Color& color)
+{
     sf::Vector2f direction = end - start;
-    float length = std::sqrt(direction.x * direction.x + direction.y * direction.y);
-    direction /= length;  // Normalize
+    float length =
+        std::sqrt(direction.x * direction.x + direction.y * direction.y);
+    direction /= length; // Normalize
 
     // Perpendicular vector for thickness
-    sf::Vector2f perpendicular(-direction.y * thickness / 2, direction.x * thickness / 2);
+    sf::Vector2f perpendicular(-direction.y * thickness / 2,
+                               direction.x * thickness / 2);
 
     // Four points of the thick line rectangle
     sf::VertexArray quad(sf::Quads, 4);
@@ -394,33 +406,41 @@ void drawThickLineSegment(sf::RenderWindow& window, const sf::Vector2f& start, c
     window.draw(quad);
 }
 
-void drawThickDashedLine(sf::RenderWindow& window, const sf::Vector2f& start, const sf::Vector2f& end, float dashLength, float spaceLength, float thickness, const sf::Color& color) {
+void drawThickDashedLine(sf::RenderWindow& window, const sf::Vector2f& start,
+                         const sf::Vector2f& end, float dashLength,
+                         float spaceLength, float thickness,
+                         const sf::Color& color)
+{
     sf::Vector2f direction = end - start;
-    float lineLength = std::sqrt(direction.x * direction.x + direction.y * direction.y);
-    direction /= lineLength;  // Normalize
+    float lineLength =
+        std::sqrt(direction.x * direction.x + direction.y * direction.y);
+    direction /= lineLength; // Normalize
 
     sf::Vector2f currentPos = start;
     bool drawDash = true;
     while (lineLength > 0) {
         float segmentLength = drawDash ? dashLength : spaceLength;
-        if (segmentLength > lineLength) segmentLength = lineLength;
+        if (segmentLength > lineLength)
+            segmentLength = lineLength;
         sf::Vector2f segmentEnd = currentPos + direction * segmentLength;
 
         if (drawDash) {
-            drawThickLineSegment(window, currentPos, segmentEnd, thickness, color);
+            drawThickLineSegment(window, currentPos, segmentEnd, thickness,
+                                 color);
         }
 
         currentPos = segmentEnd;
         lineLength -= segmentLength;
-        drawDash = !drawDash;  // Alternate between dash and space
+        drawDash = !drawDash; // Alternate between dash and space
     }
 }
 
 void drawPath(const DiscreteENN_TSP& enn_tsp, bool draw_coords,
-              const std::string& title, float close_time, int highlight, int pos_start, int pos_end)
+              const std::string& title, float close_time, int highlight,
+              int pos_start, int pos_end)
 {
     const Indices_t& path{ enn_tsp.path() };
-    const Cities_t& cities{enn_tsp.cities()};
+    const Cities_t& cities{ enn_tsp.cities() };
     // Get the current desktop video mode
     const Value_t margin_size = 50;
     [[maybe_unused]] sf::VideoMode desktopMode =
@@ -453,7 +473,8 @@ void drawPath(const DiscreteENN_TSP& enn_tsp, bool draw_coords,
     path2SFVector(path, cities, points);
     fitPointsInWindow(points, window.getSize(), minmax_coords, margin_size);
     Cities_t cities_copy = cities;
-    fitPointsInWindow(cities_copy, window.getSize(), minmax_coords, margin_size);
+    fitPointsInWindow(cities_copy, window.getSize(), minmax_coords,
+                      margin_size);
     sf::ConvexShape polygon;
     polygon.setPointCount(points.size());
     for (size_t i = 0; i < points.size(); ++i) {
@@ -468,25 +489,28 @@ void drawPath(const DiscreteENN_TSP& enn_tsp, bool draw_coords,
     // const auto [min_x, max_x, min_y, max_y] = minmax_coords_copy.value();
     // min_x = min_y = static_cast<Value_t>(0);
     // max_x = max_y = max_coord;
-    auto mid_x{(max_x + min_x)/2}, mid_y{(max_y + min_y)/2};
+    auto mid_x{ (max_x + min_x) / 2 }, mid_y{ (max_y + min_y) / 2 };
     // Define a vector of pairs to hold point coordinates
     std::vector<std::pair<sf::Vector2f, sf::Vector2f>> line_points = {
-        {{min_x, mid_y}, {max_x, mid_y}},
-        {{mid_x, min_y}, {mid_x, max_y}},
-        {{mid_x/2, min_y}, {mid_x/2, max_y}},
-        {{mid_x - mid_x/2, min_y}, {mid_x - mid_x/2, max_y}},
-        {{mid_x + mid_x/2, min_y}, {mid_x + mid_x/2, max_y}},
-        {{min_x, mid_y - mid_y/2}, {max_x, mid_y - mid_y/2}},
-        {{min_x, mid_y + mid_y/2}, {max_x, mid_y + mid_y/2}},
+        { { min_x, mid_y }, { max_x, mid_y } },
+        { { mid_x, min_y }, { mid_x, max_y } },
+        { { mid_x / 2, min_y }, { mid_x / 2, max_y } },
+        { { mid_x - mid_x / 2, min_y }, { mid_x - mid_x / 2, max_y } },
+        { { mid_x + mid_x / 2, min_y }, { mid_x + mid_x / 2, max_y } },
+        { { min_x, mid_y - mid_y / 2 }, { max_x, mid_y - mid_y / 2 } },
+        { { min_x, mid_y + mid_y / 2 }, { max_x, mid_y + mid_y / 2 } },
     };
     const int layers = std::pow(2, 6);
-    const Value_t step_x = (max_x - min_x)/layers;
-    const Value_t step_y = (max_y - min_y)/layers;
-    for (int idx{0}; idx != layers; ++idx) {
-        line_points.push_back({{min_x + (idx*step_x), min_y}, {min_x + (idx*step_x), max_y}});
-        line_points.push_back({{min_x, min_y + (idx*step_y)}, {max_x, min_y + (idx*step_y)}});
+    const Value_t step_x = (max_x - min_x) / layers;
+    const Value_t step_y = (max_y - min_y) / layers;
+    for (int idx{ 0 }; idx != layers; ++idx) {
+        line_points.push_back({ { min_x + (idx * step_x), min_y },
+                                { min_x + (idx * step_x), max_y } });
+        line_points.push_back({ { min_x, min_y + (idx * step_y) },
+                                { max_x, min_y + (idx * step_y) } });
     }
-    fitPointsInWindow(line_points, window.getSize(), minmax_coords, margin_size);
+    fitPointsInWindow(line_points, window.getSize(), minmax_coords,
+                      margin_size);
     std::vector<std::pair<sf::Vector2f, sf::Vector2f>> line_points2;
     const auto [grid_step_min, grid_step_max] = enn_tsp.gridStepMinMax();
     if (pos_start != -1 and pos_end != -1) {
@@ -498,24 +522,37 @@ void drawPath(const DiscreteENN_TSP& enn_tsp, bool draw_coords,
         const Value_t p2_y = city_end.y;
         const Value_t width_x = p2_x - p1_x;
         const Value_t width_y = p2_y - p1_y;
-        const Value_t length = std::sqrt(width_x*width_x + width_y*width_y) ;
+        const Value_t length = std::sqrt(width_x * width_x + width_y * width_y);
         Value_t step_startX = p1_x;
         Value_t step_startY = p1_y;
-        utils::printInfoFmt("{step_startX, step_startY} : {%f, %f}", "drawPath", step_startX, step_startY);
-        utils::printInfoFmt("{step_endY, step_endY} : {%f, %f}", "drawPath", p2_x, p2_y);
+        utils::printInfoFmt("{step_startX, step_startY} : {%f, %f}", "drawPath",
+                            step_startX, step_startY);
+        utils::printInfoFmt("{step_endY, step_endY} : {%f, %f}", "drawPath",
+                            p2_x, p2_y);
         const int multiplierX = (p1_x < p2_x) ? 1 : -1;
         const int multiplierY = (p1_y < p2_y) ? 1 : -1;
-        while ((multiplierX*step_startX < multiplierX*p2_x or utils::isEqual(step_startX, p2_x)) and (multiplierY*step_startY < multiplierY*p2_y or utils::isEqual(step_startY, p2_y))) {
+        while ((multiplierX * step_startX < multiplierX * p2_x or
+                utils::isEqual(step_startX, p2_x)) and
+               (multiplierY * step_startY < multiplierY * p2_y or
+                utils::isEqual(step_startY, p2_y))) {
             const Value_t step_startX_prev{ step_startX };
             const Value_t step_startY_prev{ step_startY };
-            step_startX += utils::getRound2((width_x/length)*grid_step_min/2.);
-            step_startY += utils::getRound2((width_y/length)*grid_step_min/2.);
-            utils::printInfoFmt("{step_startX_prev, step_startY_prev} and {step_startX, step_startY} : {%f, %f} and {%f, %f}", "drawPath", step_startX_prev, step_startY_prev, step_startX, step_startY);
-            line_points2.push_back({{step_startX_prev, step_startY_prev}, {step_startX, step_startY}});
+            step_startX +=
+                utils::getRound2((width_x / length) * grid_step_min / 2.);
+            step_startY +=
+                utils::getRound2((width_y / length) * grid_step_min / 2.);
+            utils::printInfoFmt(
+                "{step_startX_prev, step_startY_prev} and {step_startX, step_startY} : {%f, %f} and {%f, %f}",
+                "drawPath", step_startX_prev, step_startY_prev, step_startX,
+                step_startY);
+            line_points2.push_back({ { step_startX_prev, step_startY_prev },
+                                     { step_startX, step_startY } });
         }
-        utils::printInfoFmt("Drawing (pos_start, pos_end) : (%i, %i)", "drawPath", pos_start, pos_end);
+        utils::printInfoFmt("Drawing (pos_start, pos_end) : (%i, %i)",
+                            "drawPath", pos_start, pos_end);
     }
-    fitPointsInWindow(line_points2, window.getSize(), minmax_coords, margin_size);
+    fitPointsInWindow(line_points2, window.getSize(), minmax_coords,
+                      margin_size);
 
     sf::Clock clock;
     sf::Font font;
@@ -549,7 +586,7 @@ void drawPath(const DiscreteENN_TSP& enn_tsp, bool draw_coords,
         window.setTitle(title);
 
         // Draw each line segment
-        int change_color{0};
+        int change_color{ 0 };
         for (const auto& line : line_points) {
             sf::VertexArray lineSegment(sf::Lines, 2);
             lineSegment[0].position = line.first;
@@ -615,7 +652,8 @@ void drawPath(const DiscreteENN_TSP& enn_tsp, bool draw_coords,
                 lineSegment[1].color = sf::Color::Black;
 
                 window.draw(lineSegment);
-                drawThickDashedLine(window, line.first, line.second, 20, 10, 5, sf::Color::Black);
+                drawThickDashedLine(window, line.first, line.second, 20, 10, 5,
+                                    sf::Color::Black);
             }
         }
 
@@ -623,12 +661,13 @@ void drawPath(const DiscreteENN_TSP& enn_tsp, bool draw_coords,
     }
 }
 
-int images_count{1};
+int images_count{ 1 };
 void savePath(const DiscreteENN_TSP& enn_tsp, bool draw_coords,
-              const std::string& title, int highlight, int pos_start, int pos_end)
+              const std::string& title, int highlight, int pos_start,
+              int pos_end)
 {
     const Indices_t& path{ enn_tsp.path() };
-    const Cities_t& cities{enn_tsp.cities()};
+    const Cities_t& cities{ enn_tsp.cities() };
     // Get the current desktop video mode
     const Value_t margin_size = 50;
     [[maybe_unused]] sf::VideoMode desktopMode =
@@ -642,8 +681,9 @@ void savePath(const DiscreteENN_TSP& enn_tsp, bool draw_coords,
     // min_x = min_y = min_coord;
     // max_x = max_y = max_coord;
 
-    sf::RenderWindow window(sf::VideoMode(max_coord + margin_size, max_coord + margin_size),
-                            "TSP Route. Press Any Key to Close", sf::Style::None);
+    sf::RenderWindow window(
+        sf::VideoMode(max_coord + margin_size, max_coord + margin_size),
+        "TSP Route. Press Any Key to Close", sf::Style::None);
 
     // Main loop
     VectSF_t points;
@@ -666,24 +706,26 @@ void savePath(const DiscreteENN_TSP& enn_tsp, bool draw_coords,
     // const auto [min_x, max_x, min_y, max_y] = minmax_coords_copy.value();
     // min_x = min_y = static_cast<Value_t>(0);
     // max_x = max_y = max_coord;
-    auto mid_x{(max_x + min_x)/2}, mid_y{(max_y + min_y)/2};
+    auto mid_x{ (max_x + min_x) / 2 }, mid_y{ (max_y + min_y) / 2 };
     // Define a vector of pairs to hold point coordinates
     std::vector<std::pair<sf::Vector2f, sf::Vector2f>> line_points = {
-        {{min_x, mid_y}, {max_x, mid_y}},
-        {{mid_x, min_y}, {mid_x, max_y}},
-        {{mid_x/2, min_y}, {mid_x/2, max_y}},
-        {{mid_x - mid_x/2, min_y}, {mid_x - mid_x/2, max_y}},
-        {{mid_x + mid_x/2, min_y}, {mid_x + mid_x/2, max_y}},
-        {{min_x, mid_y - mid_y/2}, {max_x, mid_y - mid_y/2}},
-        {{min_x, mid_y + mid_y/2}, {max_x, mid_y + mid_y/2}},
+        { { min_x, mid_y }, { max_x, mid_y } },
+        { { mid_x, min_y }, { mid_x, max_y } },
+        { { mid_x / 2, min_y }, { mid_x / 2, max_y } },
+        { { mid_x - mid_x / 2, min_y }, { mid_x - mid_x / 2, max_y } },
+        { { mid_x + mid_x / 2, min_y }, { mid_x + mid_x / 2, max_y } },
+        { { min_x, mid_y - mid_y / 2 }, { max_x, mid_y - mid_y / 2 } },
+        { { min_x, mid_y + mid_y / 2 }, { max_x, mid_y + mid_y / 2 } },
     };
     // fitPointsInWindow(line_points, window.getSize(), minmax_coords, margin_size);
     const int layers = std::pow(2, 6);
-    const Value_t step_x = (max_x - min_x)/layers;
-    const Value_t step_y = (max_y - min_y)/layers;
-    for (int idx{0}; idx != layers; ++idx) {
-        line_points.push_back({{min_x + (idx*step_x), min_y}, {min_x + (idx*step_x), max_y}});
-        line_points.push_back({{min_x, min_y + (idx*step_y)}, {max_x, min_y + (idx*step_y)}});
+    const Value_t step_x = (max_x - min_x) / layers;
+    const Value_t step_y = (max_y - min_y) / layers;
+    for (int idx{ 0 }; idx != layers; ++idx) {
+        line_points.push_back({ { min_x + (idx * step_x), min_y },
+                                { min_x + (idx * step_x), max_y } });
+        line_points.push_back({ { min_x, min_y + (idx * step_y) },
+                                { max_x, min_y + (idx * step_y) } });
     }
 
     std::vector<std::pair<sf::Vector2f, sf::Vector2f>> line_points2;
@@ -697,30 +739,42 @@ void savePath(const DiscreteENN_TSP& enn_tsp, bool draw_coords,
         const Value_t p2_y = city_end.y;
         const Value_t width_x = p2_x - p1_x;
         const Value_t width_y = p2_y - p1_y;
-        const Value_t length = std::sqrt(width_x*width_x + width_y*width_y) ;
+        const Value_t length = std::sqrt(width_x * width_x + width_y * width_y);
         Value_t step_startX = p1_x;
         Value_t step_startY = p1_y;
-        utils::printInfoFmt("{step_startX, step_startY} : {%f, %f}", "savePath", step_startX, step_startY);
-        utils::printInfoFmt("{step_endY, step_endY} : {%f, %f}", "savePath", p2_x, p2_y);
-        while ((step_startX < p2_x or utils::isEqual(step_startX, p2_x)) and (step_startY < p2_y or utils::isEqual(step_startY, p2_y))) {
+        utils::printInfoFmt("{step_startX, step_startY} : {%f, %f}", "savePath",
+                            step_startX, step_startY);
+        utils::printInfoFmt("{step_endY, step_endY} : {%f, %f}", "savePath",
+                            p2_x, p2_y);
+        while ((step_startX < p2_x or utils::isEqual(step_startX, p2_x)) and
+               (step_startY < p2_y or utils::isEqual(step_startY, p2_y))) {
             const Value_t step_startX_prev{ step_startX };
             const Value_t step_startY_prev{ step_startY };
-            step_startX += utils::getRound2((width_x/length)*grid_step_min/2.);
-            step_startY += utils::getRound2((width_y/length)*grid_step_min/2.);
-            utils::printInfoFmt("{step_startX_prev, step_startY_prev} and {step_startX, step_startY} : {%f, %f} and {%f, %f}", "savePath", step_startX_prev, step_startY_prev, step_startX, step_startY);
-            line_points2.push_back({{step_startX_prev, step_startY_prev}, {step_startX, step_startY}});
+            step_startX +=
+                utils::getRound2((width_x / length) * grid_step_min / 2.);
+            step_startY +=
+                utils::getRound2((width_y / length) * grid_step_min / 2.);
+            utils::printInfoFmt(
+                "{step_startX_prev, step_startY_prev} and {step_startX, step_startY} : {%f, %f} and {%f, %f}",
+                "savePath", step_startX_prev, step_startY_prev, step_startX,
+                step_startY);
+            line_points2.push_back({ { step_startX_prev, step_startY_prev },
+                                     { step_startX, step_startY } });
         }
-        utils::printInfoFmt("Drawing (pos_start, pos_end) : (%i, %i)", "savePath", pos_start, pos_end);
+        utils::printInfoFmt("Drawing (pos_start, pos_end) : (%i, %i)",
+                            "savePath", pos_start, pos_end);
     }
 
     sf::Clock clock;
     sf::Font font;
     font.loadFromFile("/usr/share/fonts/TTF/Roboto-Regular.ttf");
-    const bool save_image{true};
-    const std::string& image_filename{ "./Output/Images/" + title + "/DrawPlane%d.png" };
+    const bool save_image{ true };
+    const std::string& image_filename{ "./Output/Images/" + title +
+                                       "/DrawPlane%d.png" };
     // int image_count{1};
     if (save_image) {
-        const auto image_dir = utils::getCleanPath(utils::stdfs::path(image_filename).parent_path());
+        const auto image_dir = utils::getCleanPath(
+            utils::stdfs::path(image_filename).parent_path());
         if (not utils::stdfs::is_directory(image_dir)) {
             utils::stdfs::create_directories(image_dir);
         }
@@ -731,7 +785,7 @@ void savePath(const DiscreteENN_TSP& enn_tsp, bool draw_coords,
     window.setTitle(title);
 
     // Draw each line segment
-    int change_color{0};
+    int change_color{ 0 };
     for (const auto& line : line_points) {
         sf::VertexArray lineSegment(sf::Lines, 2);
         lineSegment[0].position = line.first;
@@ -795,7 +849,8 @@ void savePath(const DiscreteENN_TSP& enn_tsp, bool draw_coords,
             lineSegment[1].color = sf::Color::Black;
 
             window.draw(lineSegment);
-            drawThickDashedLine(window, line.first, line.second, 20, 10, 5, sf::Color::Black);
+            drawThickDashedLine(window, line.first, line.second, 20, 10, 5,
+                                sf::Color::Black);
         }
     }
 
@@ -804,12 +859,12 @@ void savePath(const DiscreteENN_TSP& enn_tsp, bool draw_coords,
     texture.update(window);
     sf::Image screenshot = texture.copyToImage();
 
-    if (!screenshot.saveToFile(utils::stringFmt(image_filename, images_count))) {
+    if (!screenshot.saveToFile(
+            utils::stringFmt(image_filename, images_count))) {
         std::cerr << "Failed to save screenshot." << std::endl;
     }
     ++images_count;
 }
-
 
 bool readDistances(const std::string& filename, TSPInfoVect_t& infos)
 {
@@ -860,44 +915,43 @@ bool readDistances(const std::string& filename, TSPInfoVect_t& infos)
 #if TSP_DRAW_ROOT > 0
 void drawState(const std::string& state_file, const DiscreteENN_TSP& enn_tsp)
 {
-
-    const std::size_t WINDOW_WIDTH = 1000 ;
-    const std::size_t WINDOW_HEIGHT = 1000 ;
-    TCanvas *canvas = new TCanvas("c", "Canvas", 500, 500, WINDOW_WIDTH, WINDOW_HEIGHT) ;
+    const std::size_t WINDOW_WIDTH = 1000;
+    const std::size_t WINDOW_HEIGHT = 1000;
+    TCanvas* canvas =
+        new TCanvas("c", "Canvas", 500, 500, WINDOW_WIDTH, WINDOW_HEIGHT);
 
     const Indices_t& path{ enn_tsp.path() };
     const Cities_t& cities{ enn_tsp.cities() };
 
+    const std::size_t MARKER_COLOR_STACK = kRed;
+    const std::size_t MARKER_COLOR_PATH = kBlue;
+    const auto MARKER_SIZE_STACK = 1.;
+    const auto MARKER_SIZE_PATH = 1.;
+    const std::size_t LINE_COLOR = kRed;
+    const std::size_t LINE_STYLE = 1;
 
-    const std::size_t MARKER_COLOR_STACK = kRed ;
-    const std::size_t MARKER_COLOR_PATH = kBlue ;
-    const auto MARKER_SIZE_STACK = 1. ;
-    const auto MARKER_SIZE_PATH = 1. ;
-    const std::size_t LINE_COLOR = kRed ;
-    const std::size_t LINE_STYLE = 1 ;
-
-    const std::size_t num_cites = cities.size() ;
-    const std::size_t num_nodes = path.size() ;
+    const std::size_t num_cites = cities.size();
+    const std::size_t num_nodes = path.size();
 
     MinMaxCoords minmax_coords;
     minmax_coords.update(cities);
     [[maybe_unused]] const auto [min_coord, max_coord] = minmax_coords.minmax();
     const auto [min_x, max_x, min_y, max_y] = minmax_coords.value();
-    TH1F *frame = canvas->DrawFrame(0, 0, max_coord, max_coord) ;
+    TH1F* frame = canvas->DrawFrame(0, 0, max_coord, max_coord);
     // frame->GetYaxis()->SetRangeUser(0, IMG_HEIGHT) ;
     // frame->SetNdivisions(IMG_HEIGHT/grid_width + 1, "Y") ;
     // frame->SetNdivisions(IMG_WIDTH/grid_width + 1, "X") ;
     // const std::string &title_frame = enn_tsp.name() ;
-    frame->SetTitle( enn_tsp.name().c_str() ) ;
+    frame->SetTitle(enn_tsp.name().c_str());
 
-    TGraph *graph_stack = new TGraph(num_cites);
+    TGraph* graph_stack = new TGraph(num_cites);
     for (const City& city : cities) {
         graph_stack->SetPoint(city.id, city.x, city.y);
     }
-    graph_stack->SetLineWidth(0) ;
-    graph_stack->SetMarkerColor(MARKER_COLOR_STACK) ;
-    graph_stack->SetMarkerSize(MARKER_SIZE_STACK) ;
-    graph_stack->SetMarkerStyle(kFullCircle) ;
+    graph_stack->SetLineWidth(0);
+    graph_stack->SetMarkerColor(MARKER_COLOR_STACK);
+    graph_stack->SetMarkerSize(MARKER_SIZE_STACK);
+    graph_stack->SetMarkerStyle(kFullCircle);
 
     std::vector<Value_t> x_coords;
     x_coords.reserve(num_nodes + 1);
@@ -914,23 +968,24 @@ void drawState(const std::string& state_file, const DiscreteENN_TSP& enn_tsp)
 
     // TMultiGraph *mult_graph = new TMultiGraph("mg", "Rings plot") ;
     // TGraph *graph_gen = new TGraph(INPUT_FILE.c_str()) ; graph_gen->SetLineColor(kBlue) ;
-    TGraph *graph_path = new TGraph(num_nodes + 1, x_coords.data(), y_coords.data()) ;
-    graph_path->SetLineColor(LINE_COLOR) ;
-    graph_path->SetLineWidth(2) ;
-    graph_path->SetMarkerColor(MARKER_COLOR_PATH) ;
-    graph_path->SetMarkerSize(MARKER_SIZE_PATH) ;
-    graph_path->SetMarkerStyle(kFullCircle) ;
+    TGraph* graph_path =
+        new TGraph(num_nodes + 1, x_coords.data(), y_coords.data());
+    graph_path->SetLineColor(LINE_COLOR);
+    graph_path->SetLineWidth(2);
+    graph_path->SetMarkerColor(MARKER_COLOR_PATH);
+    graph_path->SetMarkerSize(MARKER_SIZE_PATH);
+    graph_path->SetMarkerStyle(kFullCircle);
     // graph_path->Draw("LP") ;
     // mult_graph->Draw("P") ;
 
-    TMultiGraph *mg = new TMultiGraph();
+    TMultiGraph* mg = new TMultiGraph();
     mg->Add(graph_stack, "P");
     mg->Add(graph_path, "LP");
     mg->Draw("A");
 
-    canvas->Modified() ;
-    canvas->Update() ;
-    canvas->Show() ;
+    canvas->Modified();
+    canvas->Update();
+    canvas->Show();
     // gSystem->ProcessEvents();  // Handle GUI events during the loop
     // gSystem->Sleep(1000);  // Delay to see the update
     gPad->WaitPrimitive();
@@ -940,3 +995,106 @@ void drawState(const std::string& state_file, const DiscreteENN_TSP& enn_tsp)
 }
 #endif
 
+Value_t getAngle(const City& cityA, const City& cityB)
+{
+    return std::atan2(cityA.y - cityB.y, cityA.x - cityB.x);
+}
+
+Value_t getAngle(const City& cityA, const City& cityB, const City& cityC)
+{
+    return std::abs(getAngle(cityA, cityB) - getAngle(cityC, cityB));
+}
+
+int getFaceSide(Value_t v)
+{
+    if (v >= utils::pi_1_4 and v < utils::pi_3_4) {
+        return 0;
+    } else if (v >= -utils::pi_1_4 and v < utils::pi_1_4) {
+        return 1;
+    } else if (v < -utils::pi_1_4 and v >= -utils::pi_3_4) {
+        return 2;
+    } else if (v < -utils::pi_3_4 or v >= utils::pi_3_4) {
+        return 3;
+    } else {
+        const auto error_msg{ utils::stringFmt(
+            "The value %f doesn't lie in any of the face sides.\nThe values searched are:\npi_1_4: %f, pi_1_2: %f, pi_3_4: %f", v, utils::pi_1_4, utils::pi_1_2, utils::pi_3_4) };
+        utils::printErr(error_msg, "getFaceSide");
+        throw std::runtime_error{""};
+    }
+}
+
+template <typename TurnsType>
+void searchSides(DiscreteENN_TSP& enn_tsp, const City& city,
+                 TurnsType& turns)
+{
+    const auto id{ city.id };
+    const Cities_t& cities{ enn_tsp.cities() };
+    for (const City& city_curr : cities) {
+        const int id_curr = city_curr.id;
+        if (id_curr == id) {
+            continue;
+        }
+        const auto angle{ getAngle(city_curr, city) };
+        const int index{ getFaceSide(angle)*2 };
+        utils::printInfoFmt("angle %f, face %i, index %i", "searchSides", getAngle(city_curr, city), getFaceSide(angle), index);
+        const int index_next{ index + 1 };
+        auto& [id_min, dist_min] = turns[index];
+        auto& [id_min_next, dist_min_next] = turns[index_next];
+        const Value_t dist_curr{ getDistance(city, city_curr) };
+        if (id_min == -1) {
+            id_min = id_curr;
+            dist_min = dist_curr;
+            continue;
+        }
+        const bool non_collinear{ not utils::isEqual(insertionCost(city, cities[id_min], city_curr), VALUE_ZERO) };
+        if (static_cast<int>(dist_curr - dist_min) < 0) {
+            if (non_collinear) {
+                id_min_next = id_min;
+                dist_min_next = dist_min;
+            }
+            id_min = id_curr;
+            dist_min = dist_curr;
+        } else if (id_min_next == -1 or static_cast<int>(dist_curr - dist_min_next) < 0) {
+            if (non_collinear) {
+                id_min_next = id_curr;
+                dist_min_next = dist_curr;
+            }
+        }
+    }
+}
+
+void makeConnections(DiscreteENN_TSP& enn_tsp)
+{
+    const Cities_t& cities{ enn_tsp.cities() };
+    EdgeScoresVect_t& edge_scores_all{ enn_tsp.edgeScoresAll() };
+    edge_scores_all = EdgeScoresVect_t(cities.size(), EdgeScores_t{});
+    Faces_t faces;
+    for (const City& city : cities) {
+        std::fill(faces.begin(), faces.end(), std::pair{-1, 0.});
+        utils::printInfoFmt("Starting searchSides for city %u", "searchSides", city.id);
+        searchSides(enn_tsp, city, faces);
+        EdgeScores_t& edge_scores{ edge_scores_all[city.id] };
+        int connections{0};
+        for (const auto& face : faces) {
+            const auto [id, discard1] = face;
+            if (id == -1) {
+                continue;
+            }
+            for (const auto& face_next : faces) {
+                const auto [id_next, discard2] = face_next;
+                if (id_next == -1 or id == id_next) {
+                    continue;
+                }
+                ++connections;
+                const Value_t score{ insertionCost(city, cities[id], cities[id_next]) };
+                edge_scores.push_back( EdgeScore_t{Edge_t{id, id_next}, score} );
+            }
+        }
+        if (connections == 0) {
+            const std::string& error_msg{ utils::stringFmt("Connections 0 for city %u with faces size %u.\nTotal cities : %u", city.id, faces.size(), cities.size()) };
+            utils::printErr(error_msg, "makeConnections");
+            throw std::runtime_error{error_msg};
+        }
+        std::sort(edge_scores.begin(), edge_scores.end(), [](const EdgeScore_t& edge_scoreA, const EdgeScore_t& edge_scoreB){ return (edge_scoreA.second < edge_scoreB.second); });
+    }
+}
