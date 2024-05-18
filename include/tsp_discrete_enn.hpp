@@ -140,7 +140,8 @@ template <> inline bool utils::MatchItem<Node_t>::operator()(const Node_t& node)
 
 class DiscreteENN_TSP;
 #if TSP_DRAW_ROOT > 0
-void drawState(const std::string& state_file, const DiscreteENN_TSP& enn_tsp);
+template<typename ListType = Indices_t>
+void drawState(const std::string& state_file, const DiscreteENN_TSP& enn_tsp, const ListType& highlight_list = ListType{});
 #endif
 void drawPath(const DiscreteENN_TSP& enn_tsp, bool draw_coords,
               const std::string& title, float close_time = 3600.0,
@@ -1467,52 +1468,90 @@ public:
                 id_min = city.id;
             }
         }
-        const EdgeScores_t& edge_scores{ m_edgeScores[id_min] };
+        constructFirstConnection(id_min);
+    }
+
+    void constructFirstConnection(Index_t id)
+    {
+        const EdgeScores_t& edge_scores{ m_edgeScores[id] };
         if (edge_scores.size() == 0) {
-            const std::string& error_msg{ utils::stringFmt("id_min %i has edge_scores 0.\nnum_nodes/num_cities %u/%u", id_min, m_path.size(), m_cities.size()) };
+            const std::string& error_msg{ utils::stringFmt("constructFirstConnection id %i has edge_scores 0.\nnum_nodes/num_cities %u/%u", id, m_path.size(), m_cities.size()) };
             throw std::runtime_error{error_msg};
         }
-        m_path.push_back(id_min);
-        m_pattern = pos_sep + std::to_string(id_min) + pos_sep;
-        const auto [id_prev, id_next] = edge_scores[0].first;
+        m_path.clear();
+        m_pattern = "";
+        m_path.push_back(id);
+        m_pattern = pos_sep + std::to_string(id) + pos_sep;
+        const auto [id_prev, id_next] = change_child ? edge_scores[1].first : edge_scores[0].first;
         m_path.push_back(id_prev);
         m_pattern += pos_sep + std::to_string(id_prev) + pos_sep;
         m_path.push_back(id_next);
         m_pattern += pos_sep + std::to_string(id_next) + pos_sep;
-        m_cities[id_min].on_stack = false;
+        m_cities[id].on_stack = false;
         m_cities[id_prev].on_stack = false;
         m_cities[id_next].on_stack = false;
         child_left = 1;
         child_right = 2;
 
-        m_cities[id_min].id_prev = id_next;
-        m_cities[id_min].id_next = id_prev;
+        m_cities[id].id_prev = id_next;
+        m_cities[id].id_next = id_prev;
 
-        m_cities[id_prev].id_prev = id_min;
+        m_cities[id_prev].id_prev = id;
         m_cities[id_prev].id_next = id_next;
 
         m_cities[id_next].id_prev = id_prev;
-        m_cities[id_next].id_next = id_min;
+        m_cities[id_next].id_next = id;
     }
 
     bool run(std::default_random_engine& gen)
     {
         [[maybe_unused]] const Index_t num_cities = m_cities.size();
         std::unordered_set<std::string> pattern_hashes;
+        pattern_hashes.insert(m_pattern);
         bool left{false};
         int index_child, index_parent;
         int id_child;
         std::size_t id_now, id_parent;
         std::size_t count{0};
         while (true) {
+            if (m_path.size() == 1) {
+                constructFirstConnection(m_path[0]);
+                if (not pattern_hashes.insert(m_pattern).second) {
+#if TSP_DEBUG_PRINT > 0
+                    const std::string& info_msg1{ utils::stringFmt("From scratch found repeating pattern. change_child %i, change_parent %i", static_cast<int>(change_child), static_cast<int>(change_parent)) };
+                    utils::printInfo(
+                        info_msg1, "run");
+                    utils::printInfoFmt("Path progress %u/%u", "run", m_path.size(), num_cities);
+                    if (change_child) {
+                        change_parent = true;
+                    } else {
+                        change_child = true;
+                    }
+                    const std::string& info_msg2{ utils::stringFmt("New settings change_child %i, change_parent %i", static_cast<int>(change_child), static_cast<int>(change_parent)) };
+                    utils::printInfo(
+                        info_msg2, "run");
+#endif
+                }
+                continue;
+            }
             left = not left;
             utils::printInfoFmt("Running iteration #%u with left %i", "run", ++count, static_cast<int>(left));
             int& index_now = left ? child_left : child_right;
+            id_now = m_path[index_now];
             if (change_parent) {
                 removeNode(index_now);
+                const std::string& info_msg1{ utils::stringFmt("change_parent Removing node.\nindex_now %i, id_now %u, index_child %i, id_child %i, index_parent %i, id_parent %u.\nnum_nodes/num_cities %u/%u", index_now, id_now, index_child, id_child, index_parent, id_parent, m_path.size(), m_cities.size()) };
+                utils::printInfo(info_msg1, "run");
+                drawState("", *this, {id_now});
                 index_now = left ? properIndex(index_now - 1) : properIndex(index_now);
+                if (left) {
+                    child_right = properIndex(child_right - 1);
+                }
+                id_now = m_path[index_now];
+                if (m_path.size() == 1) {
+                    continue;
+                }
             }
-            id_now = m_path[index_now];
             if (left) {
                 index_child = properIndex(index_now + 1);
                 index_parent = properIndex(index_now - 1);
@@ -1521,6 +1560,9 @@ public:
                 index_child = properIndex(index_now);
                 index_parent = properIndex(index_now + 1);
                 id_parent = m_cities[id_now].id_next;
+            }
+            if (m_path.size() == 2) {
+                index_child = 0;
             }
             if (id_parent != m_path[index_parent]) {
                 const std::string& error_msg{ utils::stringFmt("id_parent %u mismatch with value from index_parent %i which is %u.\nnum_nodes/num_cities %u/%u", id_parent, index_parent, m_path[index_parent], m_path.size(), m_cities.size()) };
@@ -1533,45 +1575,68 @@ public:
             const EdgeScores_t& edge_scores{ m_edgeScores[id_now] };
             for (int idx{0}; idx != static_cast<int>(edge_scores.size()); ++idx) {
                 const auto [id, id_next] = edge_scores[idx].first;
-                const std::string& info_msg{ utils::stringFmt("Searching for edge.\nidx %i, (id, id_next) (%u, %u), index_now %i, id_now %u, index_child %i, id_child %i, index_parent %i, id_parent %u.\nnum_nodes/num_cities %u/%u", idx, id, id_next, index_now, id_now, index_child, id_now, index_parent, id_parent, m_path.size(), m_cities.size()) };
-                utils::printInfo(info_msg, "run");
+                // const std::string& info_msg{ utils::stringFmt("Searching for edge.\nidx %i, (id, id_next) (%u, %u), index_now %i, id_now %u, index_child %i, id_child %i, index_parent %i, id_parent %u.\nnum_nodes/num_cities %u/%u", idx, id, id_next, index_now, id_now, index_child, id_now, index_parent, id_parent, m_path.size(), m_cities.size()) };
+                // utils::printInfo(info_msg, "run");
+                if ((id == id_parent and (not m_cities[id_next].on_stack)) or (id_next == id_parent and (not m_cities[id].on_stack))) {
+                    if (id == 16) {
+                        m_cities[id].print();
+                    }
+                    continue;
+                }
                 if (change_child and (not changed) and (id == id_parent or id_next == id_parent)) {
                     changed = true;
                     continue;
                 }
                 if (id == id_parent) {
                     id_child = id_next;
+                    const std::string& info_msg{ utils::stringFmt("Selected edge.\nidx %i, (id, id_next) (%u, %u), index_now %i, id_now %u, index_child %i, id_child %i, index_parent %i, id_parent %u.\nnum_nodes/num_cities %u/%u", idx, id, id_next, index_now, id_now, index_child, id_child, index_parent, id_parent, m_path.size(), m_cities.size()) };
+                    utils::printInfo(info_msg, "run");
                     break;
                 }
                 if (id_next == id_parent) {
                     id_child = id;
+                    const std::string& info_msg{ utils::stringFmt("Selected edge.\nidx %i, (id, id_next) (%u, %u), index_now %i, id_now %u, index_child %i, id_child %i, index_parent %i, id_parent %u.\nnum_nodes/num_cities %u/%u", idx, id, id_next, index_now, id_now, index_child, id_child, index_parent, id_parent, m_path.size(), m_cities.size()) };
+                    utils::printInfo(info_msg, "run");
                     break;
                 }
             }
             if (id_child == -1) {
-                const std::string& error_msg{ utils::stringFmt("id_child is -1 for index_now %i, edge_scores size %u, index_parent %i, index_child %i, id_now %u and id_parent %u, change_child %i.\nnum_nodes/num_cities %u/%u", index_now, edge_scores.size(), index_parent, index_child, id_now, id_parent, static_cast<int>(change_child), m_path.size(), m_cities.size()) };
-                throw std::runtime_error{error_msg};
+                removeNode(index_now);
+                const std::string& info_msg1{ utils::stringFmt("Removing node.\nindex_now %i, id_now %u, index_child %i, id_child %i, index_parent %i, id_parent %u.\nnum_nodes/num_cities %u/%u", index_now, id_now, index_child, id_child, index_parent, id_parent, m_path.size(), m_cities.size()) };
+                utils::printInfo(info_msg1, "run");
+                drawState("", *this, {id_now});
+                index_now = left ? properIndex(index_now - 1) : properIndex(index_now);
+                if (left) {
+                    child_right = properIndex(child_right - 1);
+                }
+                const std::string& info_msg2{ utils::stringFmt("Removed node.\nindex_now %i, id_now %u, index_child %i, id_child %i, index_parent %i, id_parent %u.\nnum_nodes/num_cities %u/%u", index_now, m_path[index_now], index_child, id_child, index_parent, id_parent, m_path.size(), m_cities.size()) };
+                utils::printInfo(info_msg2, "run");
+                continue;
+                // const std::string& error_msg{ utils::stringFmt("id_child is -1 for index_now %i, edge_scores size %u, index_parent %i, index_child %i, id_now %u and id_parent %u, change_child %i.\nnum_nodes/num_cities %u/%u", index_now, edge_scores.size(), index_parent, index_child, id_now, id_parent, static_cast<int>(change_child), m_path.size(), m_cities.size()) };
+                // throw std::runtime_error{error_msg};
             }
-            const std::string& info_msg2{ utils::stringFmt("index_now %i, id_now %u, index_child %i, id_child %i, index_parent %i, id_parent %u.\nnum_nodes/num_cities %u/%u", index_now, id_now, index_child, id_now, index_parent, id_parent, m_path.size(), m_cities.size()) };
+            const std::string& info_msg2{ utils::stringFmt("Adding node.\nindex_now %i, id_now %u, index_child %i, id_child %i, index_parent %i, id_parent %u.\nnum_nodes/num_cities %u/%u", index_now, id_now, index_child, id_child, index_parent, id_parent, m_path.size(), m_cities.size()) };
             utils::printInfo(info_msg2, "run");
             index_now = index_child;
             addNode(index_child, id_child);
-            const std::string& info_msg3{ utils::stringFmt("index_now %i, id_now %u, index_child %i, id_child %i, index_parent %i, id_parent %u.\nnum_nodes/num_cities %u/%u", index_now, id_now, index_child, id_now, index_parent, id_parent, m_path.size(), m_cities.size()) };
+            const std::string& info_msg3{ utils::stringFmt("Added node.\nindex_now %i, id_now %u, index_child %i, id_child %i, index_parent %i, id_parent %u.\nnum_nodes/num_cities %u/%u", index_now, id_now, index_child, id_child, index_parent, id_parent, m_path.size(), m_cities.size()) };
             utils::printInfo(info_msg3, "run");
             m_cities[id_child].on_stack = false;
-            child_right = properIndex(child_right + 1);
+            if (left) {
+                child_right = properIndex(child_right + 1);
+            }
 
 #if TSP_DRAW_ROOT > 0
-            drawState("", *this);
+            drawState("", *this, {id_now, static_cast<Index_t>(id_child)});
 #endif
 
 #if TSP_DEBUG_PRINT > 1
             if (checkIntersectPath()) {
                 utils::printErrFmt(
                     "intersection from adding node at %i for city %i.\nnum_nodes/num_cities %u/%u", "run", index_child, id_child, m_path.size(), m_cities.size());
-                drawState("", *this);
                 std::chrono::seconds sleep_time{ 5 };
                 std::this_thread::sleep_for(sleep_time);
+                drawState("", *this);
             }
 #endif
 

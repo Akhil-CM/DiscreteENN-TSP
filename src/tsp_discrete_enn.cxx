@@ -4,6 +4,7 @@
 
 #include <SFML/Window/WindowStyle.hpp>
 #include <algorithm>
+#include <cstddef>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
@@ -16,6 +17,7 @@
 #include <TMarker.h>
 #include <TH1F.h>
 #include <TGraph.h>
+#include <TLatex.h>
 #include <TMultiGraph.h>
 #include <TCanvas.h>
 #include <TApplication.h>
@@ -60,6 +62,7 @@ void parseCities(Cities_t& cities, const std::string& filename)
             line_stream >> line_num >> x >> y;
             // utils::printInfoFmt("The coords #%i are (%f, %f)", "parseCities", line_num, x, y);
             City city(line_count, x, y);
+            city.on_stack = true;
             cities.push_back(city);
             ++line_count;
         }
@@ -913,7 +916,8 @@ bool readDistances(const std::string& filename, TSPInfoVect_t& infos)
 }
 
 #if TSP_DRAW_ROOT > 0
-void drawState(const std::string& state_file, const DiscreteENN_TSP& enn_tsp)
+template<typename ListType>
+void drawState(const std::string& state_file, const DiscreteENN_TSP& enn_tsp, const ListType& highlight_list)
 {
     const std::size_t WINDOW_WIDTH = 1000;
     const std::size_t WINDOW_HEIGHT = 1000;
@@ -983,16 +987,49 @@ void drawState(const std::string& state_file, const DiscreteENN_TSP& enn_tsp)
     mg->Add(graph_path, "LP");
     mg->Draw("A");
 
+    std::vector<TLatex*> labels(num_nodes);
+    for (std::size_t idx = 0; idx != num_nodes; ++idx) {
+        const City& city{ cities[path[idx]] };
+        labels[idx] = new TLatex(city.x, city.y, Form("(%lu, %u, %.1f, %.1f)", idx, city.id, city.x, city.y));
+        labels[idx]->SetTextSize(0.02); // Set text size
+        labels[idx]->SetTextFont(42); // Set text font
+        labels[idx]->Draw();
+    }
+
+    TMarker marker;
+    marker.SetMarkerStyle(29); // A larger and different marker style
+    marker.SetMarkerColor(kViolet); // Red color for highlighted points
+    marker.SetMarkerSize(1.5); // Make it slightly larger than other points
+    for (auto idx : highlight_list) {
+        const City& city{ cities[idx] };
+        marker.DrawMarker(city.x, city.y); // Redraw the highlighted point
+    }
+
     canvas->Modified();
     canvas->Update();
-    canvas->Show();
+    // canvas->Show();
     // gSystem->ProcessEvents();  // Handle GUI events during the loop
     // gSystem->Sleep(1000);  // Delay to see the update
-    gPad->WaitPrimitive();
+    // gPad->WaitPrimitive();
     // app->Run() ;
+
+    auto start_time = static_cast<std::size_t>(gSystem->Now());
+
+    while (static_cast<decltype(start_time)>(gSystem->Now()) - start_time < 6000) { // Loop for up to 5000 milliseconds
+        gSystem->ProcessEvents();
+        gSystem->Sleep(50); // Sleep for 50 milliseconds
+        // gPad->WaitPrimitive();
+
+        // TRootCanvas *rootCanvas = (TRootCanvas *)canvas->GetCanvasImp();
+        // char keyPressed = rootCanvas->GetKeyPress();
+        // if (keyPressed == 'q' || keyPressed == 27) { // 27 is ASCII for Escape
+        //     break;
+        // }
+    }
 
     delete canvas;
 }
+template void drawState<Indices_t>(const std::string&, const DiscreteENN_TSP&, const Indices_t&);
 #endif
 
 Value_t getAngle(const City& cityA, const City& cityB)
