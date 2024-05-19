@@ -1526,6 +1526,12 @@ public:
         return -1;
     }
 
+    void cycleUpdateIndex()
+    {
+        m_indexLeft = properIndex(int(m_indexLeft) - 1);
+        m_indexRight = properIndex(int(m_indexRight) - 1);
+    }
+
     void updateChildsRemove()
     {
         if (m_indexLeft < m_indexRight) {
@@ -1598,6 +1604,7 @@ public:
         std::size_t count{0};
         const std::size_t draw_timeout{10};
         m_left = true;
+        change_parent = false;
         while (true) {
             if (m_path.size() == 1) {
                 constructFirstConnection(m_path[0], pattern_hashes);
@@ -1670,7 +1677,7 @@ public:
                     id_now = m_path[index_now];
                     id_parent = m_path[m_indexParent];
                     // id_parent = m_left ? m_cities[id_now].id_prev : m_cities[id_now].id_next;
-#if TSP_DRAW_ROOT > 0
+#if TSP_DRAW_ROOT > 2
                     drawState("", *this, {id_now, static_cast<Index_t>(id_child)}, draw_timeout);
 #endif
                     const std::string& info_msg3{ utils::stringFmt("Added node.\nindex_now %i, id_now %u, m_indexParent %i, id_parent %u, m_indexChild %i, id_child %i.\nnum_nodes/num_cities %u/%u", index_now, id_now, m_indexParent, id_parent, m_indexChild, id_child, m_path.size(), m_cities.size()) };
@@ -1686,10 +1693,11 @@ public:
                         id_now = m_path[index_now];
                         id_parent = m_path[m_indexParent];
                         // id_parent = m_left ? m_cities[id_now].id_prev : m_cities[id_now].id_next;
-                        drawState("", *this, {id_now}, draw_timeout);
+                        // drawState("", *this, {id_now}, draw_timeout);
                         const std::string& info_msg2{ utils::stringFmt("Removed node.\nindex_now %i, id_now %u, m_indexParent %i, id_parent %u, m_indexChild %i, id_child %i.\nnum_nodes/num_cities %u/%u", index_now, id_now, m_indexParent, id_parent, m_indexChild, id_child, m_path.size(), m_cities.size()) };
                         utils::printInfo(info_msg2, "run");
                         utils::printInfoFmt("m_indexLeft, m_indexRight %u, %u", "run", m_indexLeft, m_indexRight);
+                        change_parent = true;
                         continue;
                     }
                     break;
@@ -1702,22 +1710,32 @@ public:
             }
 
             if (id_child == -1) {
-                const std::string& info_msg1{ utils::stringFmt("Removing node.\nindex_now %i, id_now %u, m_indexParent %i, id_parent %u, m_indexChild %i, id_child %i.\nnum_nodes/num_cities %u/%u", index_now, id_now, m_indexParent, id_parent, m_indexChild, id_child, m_path.size(), m_cities.size()) };
-                utils::printInfo(info_msg1, "run");
-                removeNode(index_now);
-                drawState("", *this, {id_now}, draw_timeout);
-                updateChildsRemove();
-                updateParentAndChild(index_now);
-                id_now = m_path[index_now];
-                id_parent = m_path[m_indexParent];
-                // id_parent = m_left ? m_cities[id_now].id_prev : m_cities[id_now].id_next;
-                const std::string& info_msg2{ utils::stringFmt("Removed node.\nindex_now %i, id_now %u, m_indexParent %i, id_parent %u, m_indexChild %i, id_child %i.\nnum_nodes/num_cities %u/%u", index_now, id_now, m_indexParent, id_parent, m_indexChild, id_child, m_path.size(), m_cities.size()) };
-                utils::printInfo(info_msg2, "run");
-                utils::printInfoFmt("m_indexLeft, m_indexRight %u, %u", "run", m_indexLeft, m_indexRight);
+                if (change_parent) {
+                    change_parent = false;
+                    const std::string& info_msg1{ utils::stringFmt("Chnaging node.\nindex_now %i, id_now %u, m_indexParent %i, id_parent %u, m_indexChild %i, id_child %i.\nnum_nodes/num_cities %u/%u", index_now, id_now, m_indexParent, id_parent, m_indexChild, id_child, m_path.size(), m_cities.size()) };
+                    utils::printInfo(info_msg1, "run");
+                    cycleUpdateIndex();
+                    const std::string& info_msg2{ utils::stringFmt("Chnaged node.\nindex_now %i, id_now %u, m_indexParent %i, id_parent %u, m_indexChild %i, id_child %i.\nnum_nodes/num_cities %u/%u", index_now, id_now, m_indexParent, id_parent, m_indexChild, id_child, m_path.size(), m_cities.size()) };
+                    utils::printInfo(info_msg2, "run");
+                } else {
+                    const std::string& info_msg1{ utils::stringFmt("Removing node.\nindex_now %i, id_now %u, m_indexParent %i, id_parent %u, m_indexChild %i, id_child %i.\nnum_nodes/num_cities %u/%u", index_now, id_now, m_indexParent, id_parent, m_indexChild, id_child, m_path.size(), m_cities.size()) };
+                    utils::printInfo(info_msg1, "run");
+                    removeNode(index_now);
+                    // drawState("", *this, {id_now}, draw_timeout);
+                    updateChildsRemove();
+                    updateParentAndChild(index_now);
+                    id_now = m_path[index_now];
+                    id_parent = m_path[m_indexParent];
+                    // id_parent = m_left ? m_cities[id_now].id_prev : m_cities[id_now].id_next;
+                    const std::string& info_msg2{ utils::stringFmt("Removed node.\nindex_now %i, id_now %u, m_indexParent %i, id_parent %u, m_indexChild %i, id_child %i.\nnum_nodes/num_cities %u/%u", index_now, id_now, m_indexParent, id_parent, m_indexChild, id_child, m_path.size(), m_cities.size()) };
+                    utils::printInfo(info_msg2, "run");
+                    utils::printInfoFmt("m_indexLeft, m_indexRight %u, %u", "run", m_indexLeft, m_indexRight);
+                }
                 continue;
                 // const std::string& error_msg{ utils::stringFmt("id_child is -1 for index_now %i, edge_scores size %u, index_parent %i, index_child %i, id_now %u and id_parent %u, change_child %i.\nnum_nodes/num_cities %u/%u", index_now, edge_scores.size(), index_parent, index_child, id_now, id_parent, static_cast<int>(change_child), m_path.size(), m_cities.size()) };
                 // throw std::runtime_error{error_msg};
             }
+            drawState("", *this, {id_now, id_parent, static_cast<std::size_t>(id_child)}, draw_timeout);
 
             // m_left = not m_left;
 
