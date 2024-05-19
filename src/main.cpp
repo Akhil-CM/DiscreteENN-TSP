@@ -324,7 +324,7 @@ int runPipelineSingle(TSPInfo& info, const stdfs::path& data_path,
     // -------------------------------------------
     // Construct Path
     // -------------------------------------------
-    enn_tsp.constructInitialPath();
+    // enn_tsp.constructInitialPath();
 
 //     {
 // #if (TSP_DEBUG_PRINT > 0)
