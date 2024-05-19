@@ -1702,9 +1702,9 @@ public:
             }
 
             if (id_child == -1) {
-                removeNode(index_now);
                 const std::string& info_msg1{ utils::stringFmt("Removing node.\nindex_now %i, id_now %u, m_indexParent %i, id_parent %u, m_indexChild %i, id_child %i.\nnum_nodes/num_cities %u/%u", index_now, id_now, m_indexParent, id_parent, m_indexChild, id_child, m_path.size(), m_cities.size()) };
                 utils::printInfo(info_msg1, "run");
+                removeNode(index_now);
                 drawState("", *this, {id_now}, draw_timeout);
                 updateChildsRemove();
                 updateParentAndChild(index_now);
@@ -1728,6 +1728,18 @@ public:
 
 #if TSP_DEBUG_PRINT > 1
             if (checkIntersectPath()) {
+                const std::string& info_msg1{ utils::stringFmt("Intersection node removing.\nindex_now %i, id_now %u, m_indexParent %i, id_parent %u, m_indexChild %i, id_child %i.\nnum_nodes/num_cities %u/%u", index_now, id_now, m_indexParent, id_parent, m_indexChild, id_child, m_path.size(), m_cities.size()) };
+                utils::printInfo(info_msg1, "run");
+                removeNode(index_now);
+                drawState("", *this, {id_now}, draw_timeout);
+                updateChildsRemove();
+                updateParentAndChild(index_now);
+                id_now = m_path[index_now];
+                id_parent = m_path[m_indexParent];
+                // id_parent = m_left ? m_cities[id_now].id_prev : m_cities[id_now].id_next;
+                const std::string& info_msg2{ utils::stringFmt("Intersection node removed.\nindex_now %i, id_now %u, m_indexParent %i, id_parent %u, m_indexChild %i, id_child %i.\nnum_nodes/num_cities %u/%u", index_now, id_now, m_indexParent, id_parent, m_indexChild, id_child, m_path.size(), m_cities.size()) };
+                utils::printInfo(info_msg2, "run");
+                utils::printInfoFmt("m_indexLeft, m_indexRight %u, %u", "run", m_indexLeft, m_indexRight);
                 utils::printErrFmt(
                     "intersection from adding node at %i for city %i.\nnum_nodes/num_cities %u/%u", "run", m_indexChild, id_child, m_path.size(), m_cities.size());
                 // std::chrono::seconds sleep_time{ 5 };
