@@ -141,7 +141,7 @@ template <> inline bool utils::MatchItem<Node_t>::operator()(const Node_t& node)
 class DiscreteENN_TSP;
 #if TSP_DRAW_ROOT > 0
 template<typename ListType = Indices_t>
-void drawState(const std::string& state_file, const DiscreteENN_TSP& enn_tsp, const ListType& highlight_list = ListType{});
+void drawState(const std::string& state_file, const DiscreteENN_TSP& enn_tsp, const ListType& highlight_list = ListType{}, std::size_t timeout=-1, bool wait=false);
 #endif
 void drawPath(const DiscreteENN_TSP& enn_tsp, bool draw_coords,
               const std::string& title, float close_time = 3600.0,
@@ -467,9 +467,13 @@ public:
         std::string::size_type idx_insert = m_pattern.find(node_idx_str);
         m_pattern.insert(idx_insert, node_idx_added_str);
 
-        m_path.insert(m_path.begin() + index, pos);
+        if (index == m_path.size()) {
+            m_path.push_back(pos);
+        } else {
+            m_path.insert(m_path.begin() + index, pos);
+        }
 
-        const Index_t pos_next = m_path[index + 1];
+        const Index_t pos_next = m_path[properIndex(index + 1)];
         const Index_t pos_prev = m_path[properIndex(int(index) - 1)];
         m_cities[pos].id_next = pos_next;
         m_cities[pos].id_prev = pos_prev;
@@ -1503,6 +1507,57 @@ public:
         m_cities[id_next].id_next = id;
     }
 
+    int checkNeighbours()
+    {
+        for (int idx{0}; idx != m_path.size(); ++idx) {
+            const Index_t id{ m_path[idx] };
+            const Index_t id_prev{ m_path[properIndex(int(idx) - 1)] };
+            const Index_t id_next{ m_path[properIndex(idx+1)] };
+            if (m_cities[id].id_prev != id_prev or m_cities[id].id_next != id_next) {
+                return idx;
+            }
+        }
+        return -1;
+    }
+
+    void updateChildsRemove(bool left)
+    {
+        if (child_left < child_right) {
+            if (left) {
+                child_left = properIndex(int(child_left) - 1);
+                child_right = properIndex(int(child_right) - 1);
+            } else {
+                child_right = properIndex(child_right);
+            }
+        } else {
+            if (left) {
+                child_left = properIndex(int(child_left) - 1);
+            } else {
+                child_right = properIndex(child_right);
+                child_left = properIndex(int(child_left) - 1);
+            }
+        }
+    }
+
+    void updateChildsAdd(bool left)
+    {
+        if (child_left < child_right) {
+            if (left) {
+                child_left = properIndex(child_left + 1);
+                child_right = properIndex(child_right + 1);
+            } else {
+                child_right = properIndex(child_right);
+            }
+        } else {
+            if (left) {
+                child_left = properIndex(child_left + 1);
+            } else {
+                child_right = properIndex(child_right);
+                child_left = properIndex(child_left + 1);
+            }
+        }
+    }
+
     bool run(std::default_random_engine& gen)
     {
         [[maybe_unused]] const Index_t num_cities = m_cities.size();
@@ -1513,6 +1568,7 @@ public:
         int id_child;
         std::size_t id_now, id_parent;
         std::size_t count{0};
+        const std::size_t draw_timeout{10};
         while (true) {
             if (m_path.size() == 1) {
                 constructFirstConnection(m_path[0]);
@@ -1536,22 +1592,12 @@ public:
             }
             left = not left;
             utils::printInfoFmt("Running iteration #%u with left %i", "run", ++count, static_cast<int>(left));
+            if (int tmp = checkNeighbours(); tmp != -1) {
+                utils::printErrFmt("checkNeighbours first Index %i with city %u doesn't have correct (id_prev, id_next) (%u, %u) which should be (%u, %u)", "run", tmp, m_path[tmp], m_cities[m_path[tmp]].id_prev, m_cities[m_path[tmp]].id_next, m_path[properIndex(int(tmp) - 1)], m_path[properIndex(tmp + 1)]);
+                throw std::runtime_error{""};
+            }
             int& index_now = left ? child_left : child_right;
             id_now = m_path[index_now];
-            if (change_parent) {
-                removeNode(index_now);
-                const std::string& info_msg1{ utils::stringFmt("change_parent Removing node.\nindex_now %i, id_now %u, index_child %i, id_child %i, index_parent %i, id_parent %u.\nnum_nodes/num_cities %u/%u", index_now, id_now, index_child, id_child, index_parent, id_parent, m_path.size(), m_cities.size()) };
-                utils::printInfo(info_msg1, "run");
-                drawState("", *this, {id_now});
-                index_now = left ? properIndex(index_now - 1) : properIndex(index_now);
-                if (left) {
-                    child_right = properIndex(child_right - 1);
-                }
-                id_now = m_path[index_now];
-                if (m_path.size() == 1) {
-                    continue;
-                }
-            }
             if (left) {
                 index_child = properIndex(index_now + 1);
                 index_parent = properIndex(index_now - 1);
@@ -1561,12 +1607,54 @@ public:
                 index_parent = properIndex(index_now + 1);
                 id_parent = m_cities[id_now].id_next;
             }
+            if (change_parent) {
+                const std::string& info_msg1{ utils::stringFmt("change_parent Removing node.\nindex_now %i, id_now %u, index_child %i, id_child %i, index_parent %i, id_parent %u.\nnum_nodes/num_cities %u/%u", index_now, id_now, index_child, id_child, index_parent, id_parent, m_path.size(), m_cities.size()) };
+                utils::printInfo(info_msg1, "run");
+                removeNode(index_now);
+                updateChildsRemove(left);
+                id_now = m_path[index_now];
+                if (left) {
+                    index_child = properIndex(index_now + 1);
+                    index_parent = properIndex(index_now - 1);
+                    id_parent = m_cities[id_now].id_prev;
+                } else {
+                    index_child = properIndex(index_now);
+                    index_parent = properIndex(index_now + 1);
+                    id_parent = m_cities[id_now].id_next;
+                }
+                const std::string& info_msg2{ utils::stringFmt("change_parent Removed node.\nindex_now %i, id_now %u, index_child %i, id_child %i, index_parent %i, id_parent %u.\nnum_nodes/num_cities %u/%u", index_now, id_now, index_child, id_child, index_parent, id_parent, m_path.size(), m_cities.size()) };
+                utils::printInfo(info_msg2, "run");
+                drawState("", *this, {id_now}, draw_timeout);
+                if (m_path.size() == 1) {
+                    continue;
+                }
+            }
             if (m_path.size() == 2) {
-                index_child = 0;
+                if (m_cities[m_path[0]].id_next != m_path[1] or m_cities[m_path[1]].id_next != m_path[0] or m_cities[m_path[0]].id_prev != m_path[1]  or m_cities[m_path[1]].id_prev != m_path[0] ) {
+                    const std::string& error_msg{ utils::stringFmt("(id_prev, id_next) (%u, %u) mismatch with value from m_path[1] %u (%u, %u) for m_path[0] %u.\nnum_nodes/num_cities %u/%u", m_cities[m_path[0]].id_prev, m_cities[m_path[0]].id_next, m_path[1], m_cities[m_path[1]].id_prev, m_cities[m_path[1]].id_next, m_path[0], m_path.size(), m_cities.size()) };
+                    utils::printErr(error_msg, "run");
+                    drawState("", *this, {id_now}, -1, true);
+                    throw std::runtime_error{""};
+                }
+                // if (child_left != 0 or child_right != 1) {
+                //     const std::string& error_msg1{ utils::stringFmt("(child_left, child_right) (%u, %u) mismatch with values (0, 1).\nnum_nodes/num_cities %u/%u", child_left, child_right, m_path.size(), m_cities.size()) };
+                //     utils::printErr(error_msg1, "run");
+                //     const std::string& error_msg2{ utils::stringFmt("(id_prev, id_next) (%u, %u) mismatch with value from m_path[1] %u (%u, %u) for m_path[0] %u.\nnum_nodes/num_cities %u/%u", m_cities[m_path[0]].id_prev, m_cities[m_path[0]].id_next, m_path[1], m_cities[m_path[1]].id_prev, m_cities[m_path[1]].id_next, m_path[0], m_path.size(), m_cities.size()) };
+                //     utils::printErr(error_msg2, "run");
+                //     drawState("", *this, {id_now}, -1, true);
+                //     throw std::runtime_error{""};
+                // }
+                // index_child = 1;
+            }
+            if (int tmp = checkNeighbours(); tmp != -1) {
+                utils::printErrFmt("checkNeighbours second Index %i with city %u doesn't have correct (id_prev, id_next) (%u, %u) which should be (%u, %u)", "run", tmp, m_path[tmp], m_cities[m_path[tmp]].id_prev, m_cities[m_path[tmp]].id_next, m_path[properIndex(int(tmp) - 1)], m_path[properIndex(tmp + 1)]);
+                throw std::runtime_error{""};
             }
             if (id_parent != m_path[index_parent]) {
                 const std::string& error_msg{ utils::stringFmt("id_parent %u mismatch with value from index_parent %i which is %u.\nnum_nodes/num_cities %u/%u", id_parent, index_parent, m_path[index_parent], m_path.size(), m_cities.size()) };
-                throw std::runtime_error{error_msg};
+                utils::printErr(error_msg, "run");
+                drawState("", *this, {id_now}, -1, true);
+                throw std::runtime_error{""};
             }
             const std::string& info_msg1{ utils::stringFmt("index_now %i, id_now %u, index_child %i, index_parent %i, id_parent %u.\nnum_nodes/num_cities %u/%u", index_now, id_now, index_child, index_parent, id_parent, m_path.size(), m_cities.size()) };
             utils::printInfo(info_msg1, "run");
@@ -1578,9 +1666,6 @@ public:
                 // const std::string& info_msg{ utils::stringFmt("Searching for edge.\nidx %i, (id, id_next) (%u, %u), index_now %i, id_now %u, index_child %i, id_child %i, index_parent %i, id_parent %u.\nnum_nodes/num_cities %u/%u", idx, id, id_next, index_now, id_now, index_child, id_now, index_parent, id_parent, m_path.size(), m_cities.size()) };
                 // utils::printInfo(info_msg, "run");
                 if ((id == id_parent and (not m_cities[id_next].on_stack)) or (id_next == id_parent and (not m_cities[id].on_stack))) {
-                    if (id == 16) {
-                        m_cities[id].print();
-                    }
                     continue;
                 }
                 if (change_child and (not changed) and (id == id_parent or id_next == id_parent)) {
@@ -1604,11 +1689,8 @@ public:
                 removeNode(index_now);
                 const std::string& info_msg1{ utils::stringFmt("Removing node.\nindex_now %i, id_now %u, index_child %i, id_child %i, index_parent %i, id_parent %u.\nnum_nodes/num_cities %u/%u", index_now, id_now, index_child, id_child, index_parent, id_parent, m_path.size(), m_cities.size()) };
                 utils::printInfo(info_msg1, "run");
-                drawState("", *this, {id_now});
-                index_now = left ? properIndex(index_now - 1) : properIndex(index_now);
-                if (left) {
-                    child_right = properIndex(child_right - 1);
-                }
+                drawState("", *this, {id_now}, draw_timeout);
+                updateChildsRemove(left);
                 const std::string& info_msg2{ utils::stringFmt("Removed node.\nindex_now %i, id_now %u, index_child %i, id_child %i, index_parent %i, id_parent %u.\nnum_nodes/num_cities %u/%u", index_now, m_path[index_now], index_child, id_child, index_parent, id_parent, m_path.size(), m_cities.size()) };
                 utils::printInfo(info_msg2, "run");
                 continue;
@@ -1617,26 +1699,23 @@ public:
             }
             const std::string& info_msg2{ utils::stringFmt("Adding node.\nindex_now %i, id_now %u, index_child %i, id_child %i, index_parent %i, id_parent %u.\nnum_nodes/num_cities %u/%u", index_now, id_now, index_child, id_child, index_parent, id_parent, m_path.size(), m_cities.size()) };
             utils::printInfo(info_msg2, "run");
-            index_now = index_child;
             addNode(index_child, id_child);
+            updateChildsAdd(left);
             const std::string& info_msg3{ utils::stringFmt("Added node.\nindex_now %i, id_now %u, index_child %i, id_child %i, index_parent %i, id_parent %u.\nnum_nodes/num_cities %u/%u", index_now, id_now, index_child, id_child, index_parent, id_parent, m_path.size(), m_cities.size()) };
             utils::printInfo(info_msg3, "run");
             m_cities[id_child].on_stack = false;
-            if (left) {
-                child_right = properIndex(child_right + 1);
-            }
 
 #if TSP_DRAW_ROOT > 0
-            drawState("", *this, {id_now, static_cast<Index_t>(id_child)});
+            drawState("", *this, {id_now, static_cast<Index_t>(id_child)}, draw_timeout);
 #endif
 
 #if TSP_DEBUG_PRINT > 1
             if (checkIntersectPath()) {
                 utils::printErrFmt(
                     "intersection from adding node at %i for city %i.\nnum_nodes/num_cities %u/%u", "run", index_child, id_child, m_path.size(), m_cities.size());
-                std::chrono::seconds sleep_time{ 5 };
-                std::this_thread::sleep_for(sleep_time);
-                drawState("", *this);
+                // std::chrono::seconds sleep_time{ 5 };
+                // std::this_thread::sleep_for(sleep_time);
+                // drawState("", *this);
             }
 #endif
 
@@ -1670,6 +1749,25 @@ public:
                 utils::printInfo(
                     info_msg1, "run");
                 utils::printInfoFmt("Path progress %u/%u", "run", m_path.size(), num_cities);
+                utils::printInfoFmt("child_left, child_right %u, %u", "run", child_left, child_right);
+                if (change_parent) {
+                    removeNode(index_now);
+                    updateChildsRemove(left);
+                    id_now = m_path[index_now];
+                    if (left) {
+                        index_child = properIndex(index_now + 1);
+                        index_parent = properIndex(index_now - 1);
+                        id_parent = m_cities[id_now].id_prev;
+                    } else {
+                        index_child = properIndex(index_now);
+                        index_parent = properIndex(index_now + 1);
+                        id_parent = m_cities[id_now].id_next;
+                    }
+                    const std::string& info_msg1{ utils::stringFmt("Repeating pattern change_parent Removing node.\nindex_now %i, id_now %u, index_child %i, id_child %i, index_parent %i, id_parent %u.\nnum_nodes/num_cities %u/%u", index_now, id_now, index_child, id_child, index_parent, id_parent, m_path.size(), m_cities.size()) };
+                    utils::printInfo(info_msg1, "run");
+                    utils::printInfoFmt("child_left, child_right %u, %u", "run", child_left, child_right);
+                    drawState("", *this, {id_now}, draw_timeout);
+                }
                 if (change_child) {
                     change_parent = true;
                 } else {

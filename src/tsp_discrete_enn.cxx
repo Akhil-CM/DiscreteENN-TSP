@@ -4,11 +4,13 @@
 
 #include <SFML/Window/WindowStyle.hpp>
 #include <algorithm>
+#include <chrono>
 #include <cstddef>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
 #include <stdexcept>
+#include <thread>
 
 #include "utils.hpp"
 
@@ -916,8 +918,22 @@ bool readDistances(const std::string& filename, TSPInfoVect_t& infos)
 }
 
 #if TSP_DRAW_ROOT > 0
+
+class WaitForInput{
+public:
+    WaitForInput(std::string& key) : m_key{key} {}
+    void operator()()
+    {
+        std::getline(std::cin, m_key);
+        std::cin.clear();
+        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    }
+private:
+    std::string& m_key;
+};
+
 template<typename ListType>
-void drawState(const std::string& state_file, const DiscreteENN_TSP& enn_tsp, const ListType& highlight_list)
+void drawState(const std::string& state_file, const DiscreteENN_TSP& enn_tsp, const ListType& highlight_list, std::size_t timeout, bool wait)
 {
     const std::size_t WINDOW_WIDTH = 1000;
     const std::size_t WINDOW_HEIGHT = 1000;
@@ -1013,9 +1029,16 @@ void drawState(const std::string& state_file, const DiscreteENN_TSP& enn_tsp, co
     // gPad->WaitPrimitive();
     // app->Run() ;
 
+    std::string key_pressed_null;
+    std::string key_pressed{ wait ? "" : "q" };
+    auto wait_for_input{ wait ? WaitForInput(key_pressed) : WaitForInput(key_pressed_null) };
+    std::thread thrd{wait_for_input};
+    thrd.detach();
+
     auto start_time = static_cast<std::size_t>(gSystem->Now());
 
-    while (static_cast<decltype(start_time)>(gSystem->Now()) - start_time < 6000) { // Loop for up to 5000 milliseconds
+    while (static_cast<decltype(start_time)>(gSystem->Now()) - start_time < timeout or key_pressed != "q") { // Loop for up to 5000 milliseconds
+        std::this_thread::sleep_for(std::chrono::milliseconds{20});
         gSystem->ProcessEvents();
         gSystem->Sleep(50); // Sleep for 50 milliseconds
         // gPad->WaitPrimitive();
@@ -1025,11 +1048,12 @@ void drawState(const std::string& state_file, const DiscreteENN_TSP& enn_tsp, co
         // if (keyPressed == 'q' || keyPressed == 27) { // 27 is ASCII for Escape
         //     break;
         // }
+
     }
 
     delete canvas;
 }
-template void drawState<Indices_t>(const std::string&, const DiscreteENN_TSP&, const Indices_t&);
+template void drawState<Indices_t>(const std::string&, const DiscreteENN_TSP&, const Indices_t&, std::size_t, bool);
 #endif
 
 Value_t getAngle(const City& cityA, const City& cityB)
