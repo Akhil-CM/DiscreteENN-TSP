@@ -1532,59 +1532,64 @@ public:
     void cycleUpdateIndex()
     {
         m_indexLeft = properIndex(int(m_indexLeft) - 1);
-        m_indexRight = properIndex(int(m_indexRight) - 1);
+        // m_indexRight = properIndex(int(m_indexRight) - 1);
     }
 
     void updateChildsRemove()
     {
-        if (m_indexLeft < m_indexRight) {
-            if (m_left) {
-                m_indexLeft = properIndex(int(m_indexLeft) - 1);
-                m_indexRight = properIndex(int(m_indexRight) - 1);
-            } else {
-                m_indexRight = properIndex(m_indexRight);
-            }
-        } else {
-            if (m_left) {
-                m_indexLeft = properIndex(int(m_indexLeft) - 1);
-            } else {
-                m_indexLeft = properIndex(int(m_indexLeft) - 1);
-                m_indexRight = properIndex(m_indexRight);
-            }
-        }
+        m_indexLeft = properIndex(int(m_indexLeft) - 1);
+        // if (m_indexLeft < m_indexRight) {
+        //     if (m_left) {
+        //         m_indexLeft = properIndex(int(m_indexLeft) - 1);
+        //         m_indexRight = properIndex(int(m_indexRight) - 1);
+        //     } else {
+        //         m_indexRight = properIndex(m_indexRight);
+        //     }
+        // } else {
+        //     if (m_left) {
+        //         m_indexLeft = properIndex(int(m_indexLeft) - 1);
+        //     } else {
+        //         m_indexLeft = properIndex(int(m_indexLeft) - 1);
+        //         m_indexRight = properIndex(m_indexRight);
+        //     }
+        // }
     }
 
     void updateChildsAdd()
     {
-        if (m_indexLeft < m_indexRight) {
-            if (m_left) {
-                m_indexLeft = properIndex(m_indexLeft + 1);
-                m_indexRight = properIndex(m_indexRight + 1);
-            } else {
-                m_indexRight = properIndex(m_indexRight);
-            }
-        } else {
-            if (m_left) {
-                m_indexLeft = properIndex(m_indexLeft + 1);
-            } else {
-                m_indexLeft = properIndex(m_indexLeft + 1);
-                m_indexRight = properIndex(m_indexRight);
-            }
-        }
+        m_indexLeft = m_indexChild;
+        // m_indexLeft = properIndex(m_indexLeft + 1);
+        // if (m_indexLeft < m_indexRight) {
+        //     if (m_left) {
+        //         m_indexLeft = properIndex(m_indexLeft + 1);
+        //         m_indexRight = properIndex(m_indexRight + 1);
+        //     } else {
+        //         m_indexRight = properIndex(m_indexRight);
+        //     }
+        // } else {
+        //     if (m_left) {
+        //         m_indexLeft = properIndex(m_indexLeft + 1);
+        //     } else {
+        //         m_indexLeft = properIndex(m_indexLeft + 1);
+        //         m_indexRight = properIndex(m_indexRight);
+        //     }
+        // }
     }
 
     void updateParentAndChild(int index_now)
     {
+        m_indexChild = properIndex(index_now + 1);
+        m_indexParent = properIndex(index_now - 1);
 
-        if (m_left) {
-            m_indexChild = properIndex(index_now + 1);
-            m_indexParent = properIndex(index_now - 1);
-            // id_parent = m_cities[id_now].id_prev;
-        } else {
-            m_indexChild = properIndex(index_now);
-            m_indexParent = properIndex(index_now + 1);
-            // id_parent = m_cities[id_now].id_next;
-        }
+        // if (m_left) {
+        //     m_indexChild = properIndex(index_now + 1);
+        //     m_indexParent = properIndex(index_now - 1);
+        //     // id_parent = m_cities[id_now].id_prev;
+        // } else {
+        //     m_indexChild = properIndex(index_now);
+        //     m_indexParent = properIndex(index_now + 1);
+        //     // id_parent = m_cities[id_now].id_next;
+        // }
     }
 
     bool run(std::default_random_engine& gen)
@@ -1644,17 +1649,22 @@ public:
                 // index_child = 1;
             }
 
-            // utils::printInfoFmt("Running iteration #%u with left %i", "run", ++count, static_cast<int>(m_left));
+            utils::printInfoFmt("Running iteration #%u with left %i", "run", ++count, static_cast<int>(m_left));
+            utils::printInfoFmt("Path progress (num_nodes/num_cities) : %u/%u", "run", m_path.size(), m_cities.size());
             // utils::printInfoFmt("m_indexLeft, m_indexRight %u, %u", "run", m_indexLeft, m_indexRight);
             if (int tmp = checkNeighbours(); tmp != -1) {
                 utils::printErrFmt("checkNeighbours first Index %i with city %u doesn't have correct (id_prev, id_next) (%u, %u) which should be (%u, %u)", "run", tmp, m_path[tmp], m_cities[m_path[tmp]].id_prev, m_cities[m_path[tmp]].id_next, m_path[properIndex(int(tmp) - 1)], m_path[properIndex(tmp + 1)]);
                 throw std::runtime_error{""};
             }
-            int& index_now = m_left ? m_indexLeft : m_indexRight;
+            // int& index_now = m_left ? m_indexLeft : m_indexRight;
+            int& index_now = m_indexLeft;
             updateParentAndChild(index_now);
             Index_t id_now = m_path[index_now];
             Index_t id_parent = m_path[m_indexParent];
             // Index_t id_parent = m_left ? m_cities[id_now].id_prev : m_cities[id_now].id_next;
+            if (m_path.size() >= 40) {
+                drawState("", *this, {id_now, id_parent, static_cast<std::size_t>(m_path[m_indexChild])}, draw_timeout);
+            }
 
             if (id_parent != m_path[m_indexParent]) {
                 const std::string& error_msg{ utils::stringFmt("id_parent %u mismatch with value from m_indexParent %i which is %u.\nnum_nodes/num_cities %u/%u", id_parent, m_indexParent, m_path[m_indexParent], m_path.size(), m_cities.size()) };
@@ -1676,7 +1686,7 @@ public:
                 } else if (id_next == id_parent) {
                     id_child = id;
                 }
-                if (not m_cities[id_child].on_stack) {
+                if ((id_child != -1) and not m_cities[id_child].on_stack) {
                     id_child = -1;
                     continue;
                 }
@@ -1712,6 +1722,15 @@ public:
                         // utils::printInfo(info_msg2, "run");
                         // utils::printInfoFmt("m_indexLeft, m_indexRight %u, %u", "run", m_indexLeft, m_indexRight);
                         change_parent = true;
+
+                        if (checkIntersectPath()) {
+                            const std::string& info_msg0{ utils::stringFmt("Intersection found 0.\nindex_now %i, id_now %u, m_indexParent %i, id_parent %u, m_indexChild %i, id_child %i.\nnum_nodes/num_cities %u/%u", index_now, id_now, m_indexParent, id_parent, m_indexChild, id_child, m_path.size(), m_cities.size()) };
+                            utils::printInfo(info_msg0, "run");
+                            drawState("", *this, {id_now}, -1, true);
+                            // std::chrono::seconds sleep_time{ 5 };
+                            // std::this_thread::sleep_for(sleep_time);
+                            // drawState("", *this);
+                        }
                         continue;
                     }
                     break;
@@ -1724,14 +1743,14 @@ public:
             }
 
             if (id_child == -1) {
-                // if (checkIntersectPath()) {
-                //     const std::string& info_msg1{ utils::stringFmt("Intersection found 1.\nindex_now %i, id_now %u, m_indexParent %i, id_parent %u, m_indexChild %i, id_child %i.\nnum_nodes/num_cities %u/%u", index_now, id_now, m_indexParent, id_parent, m_indexChild, id_child, m_path.size(), m_cities.size()) };
-                //     utils::printInfo(info_msg1, "run");
-                //     drawState("", *this, {id_now}, -1, true);
-                //     // std::chrono::seconds sleep_time{ 5 };
-                //     // std::this_thread::sleep_for(sleep_time);
-                //     // drawState("", *this);
-                // }
+                if (checkIntersectPath()) {
+                    const std::string& info_msg1{ utils::stringFmt("Intersection found 1.\nindex_now %i, id_now %u, m_indexParent %i, id_parent %u, m_indexChild %i, id_child %i.\nnum_nodes/num_cities %u/%u", index_now, id_now, m_indexParent, id_parent, m_indexChild, id_child, m_path.size(), m_cities.size()) };
+                    utils::printInfo(info_msg1, "run");
+                    drawState("", *this, {id_now}, -1, true);
+                    // std::chrono::seconds sleep_time{ 5 };
+                    // std::this_thread::sleep_for(sleep_time);
+                    // drawState("", *this);
+                }
                 if (change_parent) {
                     change_parent = false;
                     // const std::string& info_msg1{ utils::stringFmt("Changing node.\nindex_now %i, id_now %u, m_indexParent %i, id_parent %u, m_indexChild %i, id_child %i.\nnum_nodes/num_cities %u/%u", index_now, id_now, m_indexParent, id_parent, m_indexChild, id_child, m_path.size(), m_cities.size()) };
@@ -1753,7 +1772,7 @@ public:
                         // removeNode(index_now);
                         // index_now = properIndex(index_now + 1);
                         if (m_path.size() < 4) {
-                            continue;
+                            break;
                         }
                     }
                     updateChildsRemove();
@@ -1800,9 +1819,9 @@ public:
                     // index_now = properIndex(int(index_now) - 1);
                     // removeNode(index_now);
                     // index_now = properIndex(index_now + 1);
-                    // if (m_path.size() < 4) {
-                    //     continue;
-                    // }
+                    if (m_path.size() < 4) {
+                        break;
+                    }
                 }
                 // drawState("", *this, {id_now}, draw_timeout);
                 updateChildsRemove();
